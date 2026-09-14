@@ -1,5 +1,6 @@
 from rest_framework import status, viewsets
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from .models import (
     ClassRoom,
@@ -9,7 +10,13 @@ from .models import (
     Student,
     Teacher,
 )
-from .permissions import HasSchoolAccess, IsSchoolAdmin
+from .permissions import (
+    HasSchoolAccess,
+    IsAdminOrBursar,
+    IsAdminOrTeacher,
+    IsBursar,
+    IsSchoolAdmin,
+)
 from .serializers import (
     ClassRoomSerializer,
     CompetencySerializer,
@@ -38,6 +45,12 @@ class StudentViewSet(SchoolScopedViewSet):
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAdminOrTeacher()]
+
+        return [IsAdminOrTeacher()]
+
     def get_queryset(self):
         school = self.get_school()
 
@@ -46,7 +59,10 @@ class StudentViewSet(SchoolScopedViewSet):
 
         return Student.objects.filter(
             school=school
-        ).select_related("school", "classroom")
+        ).select_related(
+            "school",
+            "classroom",
+        )
 
     def perform_create(self, serializer):
         school = self.get_school()
@@ -61,6 +77,9 @@ class CompetencyViewSet(SchoolScopedViewSet):
     queryset = Competency.objects.all()
     serializer_class = CompetencySerializer
 
+    def get_permissions(self):
+        return [IsAdminOrTeacher()]
+
     def get_queryset(self):
         school = self.get_school()
 
@@ -69,7 +88,9 @@ class CompetencyViewSet(SchoolScopedViewSet):
 
         return Competency.objects.filter(
             student__school=school
-        ).select_related("student")
+        ).select_related(
+            "student",
+        )
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
@@ -95,6 +116,9 @@ class ClassRoomViewSet(SchoolScopedViewSet):
     queryset = ClassRoom.objects.all()
     serializer_class = ClassRoomSerializer
 
+    def get_permissions(self):
+        return [IsAdminOrTeacher()]
+
     def get_queryset(self):
         school = self.get_school()
 
@@ -103,7 +127,9 @@ class ClassRoomViewSet(SchoolScopedViewSet):
 
         return ClassRoom.objects.filter(
             school=school
-        ).select_related("school")
+        ).select_related(
+            "school",
+        )
 
     def perform_create(self, serializer):
         school = self.get_school()
@@ -118,6 +144,9 @@ class TeacherViewSet(SchoolScopedViewSet):
     queryset = Teacher.objects.all()
     serializer_class = TeacherSerializer
 
+    def get_permissions(self):
+        return [IsSchoolAdmin()]
+
     def get_queryset(self):
         school = self.get_school()
 
@@ -126,12 +155,17 @@ class TeacherViewSet(SchoolScopedViewSet):
 
         return Teacher.objects.filter(
             school=school
-        ).select_related("user")
+        ).select_related(
+            "user",
+        )
 
 
 class FeePaymentViewSet(SchoolScopedViewSet):
     queryset = FeePayment.objects.all()
     serializer_class = FeePaymentSerializer
+
+    def get_permissions(self):
+        return [IsAdminOrBursar()]
 
     def get_queryset(self):
         school = self.get_school()
@@ -141,7 +175,9 @@ class FeePaymentViewSet(SchoolScopedViewSet):
 
         return FeePayment.objects.filter(
             student__school=school
-        ).select_related("student")
+        ).select_related(
+            "student",
+        )
 
     def perform_create(self, serializer):
         school = self.get_school()
@@ -153,10 +189,12 @@ class FeePaymentViewSet(SchoolScopedViewSet):
         student = serializer.validated_data["student"]
 
         if student.school_id != school.id:
-            from rest_framework.exceptions import ValidationError
-
             raise ValidationError(
-                {"student": "Student does not belong to your school."}
+                {
+                    "student": (
+                        "Student does not belong to your school."
+                    )
+                }
             )
 
         serializer.save()
@@ -191,4 +229,7 @@ class DashboardViewSet(viewsets.ViewSet):
                 ).count(),
             }
 
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(
+            data,
+            status=status.HTTP_200_OK,
+        )
