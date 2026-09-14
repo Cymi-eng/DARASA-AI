@@ -16,6 +16,7 @@ def get_user_school(user):
 
     Superusers are not restricted to a school.
     """
+
     if user.is_superuser:
         return None
 
@@ -35,9 +36,14 @@ class CompetencySerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def validate_student(self, student):
-        school = get_user_school(self.context["request"].user)
+        school = get_user_school(
+            self.context["request"].user
+        )
 
-        if school is not None and student.school_id != school.id:
+        if (
+            school is not None
+            and student.school_id != school.id
+        ):
             raise serializers.ValidationError(
                 "Student does not belong to your school."
             )
@@ -51,9 +57,14 @@ class FeePaymentSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def validate_student(self, student):
-        school = get_user_school(self.context["request"].user)
+        school = get_user_school(
+            self.context["request"].user
+        )
 
-        if school is not None and student.school_id != school.id:
+        if (
+            school is not None
+            and student.school_id != school.id
+        ):
             raise serializers.ValidationError(
                 "Student does not belong to your school."
             )
@@ -120,6 +131,9 @@ class TeacherSerializer(serializers.ModelSerializer):
     class Meta:
         model = Teacher
         fields = "__all__"
+        read_only_fields = [
+            "school",
+        ]
 
     def validate_classrooms(self, classrooms):
         school = get_user_school(
