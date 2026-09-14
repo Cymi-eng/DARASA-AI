@@ -63,6 +63,7 @@ class SchoolIsolationTests(APITestCase):
 
     def authenticate(self, user):
         refresh = RefreshToken.for_user(user)
+
         self.client.credentials(
             HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}"
         )
@@ -70,25 +71,41 @@ class SchoolIsolationTests(APITestCase):
     def test_user_only_sees_students_from_own_school(self):
         self.authenticate(self.user_a)
 
-        response = self.client.get(reverse("student-list"))
+        response = self.client.get(
+            reverse("student-list")
+        )
 
         self.assertEqual(response.status_code, 200)
 
         student_ids = [
-            student["id"] for student in response.data["results"]
+            student["id"]
+            for student in response.data
         ]
 
-        self.assertIn(self.student_a.id, student_ids)
-        self.assertNotIn(self.student_b.id, student_ids)
+        self.assertIn(
+            self.student_a.id,
+            student_ids,
+        )
+
+        self.assertNotIn(
+            self.student_b.id,
+            student_ids,
+        )
 
     def test_user_cannot_access_student_from_another_school(self):
         self.authenticate(self.user_a)
 
         response = self.client.get(
-            reverse("student-detail", args=[self.student_b.id])
+            reverse(
+                "student-detail",
+                args=[self.student_b.id],
+            )
         )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
 
     def test_school_a_user_cannot_create_student_for_school_b(self):
         self.authenticate(self.user_a)
@@ -105,9 +122,21 @@ class SchoolIsolationTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            response.status_code,
+            201,
+        )
 
-        student = Student.objects.get(admission_number="DARASA003")
+        student = Student.objects.get(
+            admission_number="DARASA003"
+        )
 
-        self.assertEqual(student.school_id, self.school_a.id)
-        self.assertNotEqual(student.school_id, self.school_b.id)
+        self.assertEqual(
+            student.school_id,
+            self.school_a.id,
+        )
+
+        self.assertNotEqual(
+            student.school_id,
+            self.school_b.id,
+        )
