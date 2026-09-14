@@ -1,6 +1,6 @@
 from rest_framework import status, viewsets
-from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 
 from .models import (
     ClassRoom,
@@ -14,7 +14,6 @@ from .permissions import (
     HasSchoolAccess,
     IsAdminOrBursar,
     IsAdminOrTeacher,
-    IsBursar,
     IsSchoolAdmin,
 )
 from .serializers import (
@@ -29,12 +28,18 @@ from .serializers import (
 
 class SchoolScopedViewSet(viewsets.ModelViewSet):
     """
-    Base ViewSet for resources that belong to a school.
+    Base ViewSet for resources belonging to a school.
     """
 
     permission_classes = [HasSchoolAccess]
 
     def get_school(self):
+        """
+        Return the authenticated user's school.
+
+        Superusers have global access.
+        """
+
         if self.request.user.is_superuser:
             return None
 
@@ -42,20 +47,27 @@ class SchoolScopedViewSet(viewsets.ModelViewSet):
 
 
 class StudentViewSet(SchoolScopedViewSet):
+    """
+    Student management API.
+
+    Students are automatically restricted to the
+    authenticated user's school.
+    """
+
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
 
     def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
-            return [IsAdminOrTeacher()]
-
         return [IsAdminOrTeacher()]
 
     def get_queryset(self):
         school = self.get_school()
 
         if school is None:
-            return Student.objects.all()
+            return Student.objects.all().select_related(
+                "school",
+                "classroom",
+            )
 
         return Student.objects.filter(
             school=school
@@ -69,11 +81,18 @@ class StudentViewSet(SchoolScopedViewSet):
 
         if school is None:
             serializer.save()
-        else:
-            serializer.save(school=school)
+            return
+
+        serializer.save(
+            school=school
+        )
 
 
 class CompetencyViewSet(SchoolScopedViewSet):
+    """
+    CBC competency assessment API.
+    """
+
     queryset = Competency.objects.all()
     serializer_class = CompetencySerializer
 
@@ -84,16 +103,22 @@ class CompetencyViewSet(SchoolScopedViewSet):
         school = self.get_school()
 
         if school is None:
-            return Competency.objects.all()
+            return Competency.objects.all().select_related(
+                "student"
+            )
 
         return Competency.objects.filter(
             student__school=school
         ).select_related(
-            "student",
+            "student"
         )
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
+    """
+    School management API.
+    """
+
     queryset = School.objects.all()
     serializer_class = SchoolSerializer
 
@@ -113,6 +138,10 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
 
 class ClassRoomViewSet(SchoolScopedViewSet):
+    """
+    Classroom management API.
+    """
+
     queryset = ClassRoom.objects.all()
     serializer_class = ClassRoomSerializer
 
@@ -123,12 +152,14 @@ class ClassRoomViewSet(SchoolScopedViewSet):
         school = self.get_school()
 
         if school is None:
-            return ClassRoom.objects.all()
+            return ClassRoom.objects.all().select_related(
+                "school"
+            )
 
         return ClassRoom.objects.filter(
             school=school
         ).select_related(
-            "school",
+            "school"
         )
 
     def perform_create(self, serializer):
@@ -136,11 +167,18 @@ class ClassRoomViewSet(SchoolScopedViewSet):
 
         if school is None:
             serializer.save()
-        else:
-            serializer.save(school=school)
+            return
+
+        serializer.save(
+            school=school
+        )
 
 
 class TeacherViewSet(SchoolScopedViewSet):
+    """
+    Teacher management API.
+    """
+
     queryset = Teacher.objects.all()
     serializer_class = TeacherSerializer
 
@@ -151,16 +189,35 @@ class TeacherViewSet(SchoolScopedViewSet):
         school = self.get_school()
 
         if school is None:
-            return Teacher.objects.all()
+            return Teacher.objects.all().select_related(
+                "user",
+                "school",
+            )
 
         return Teacher.objects.filter(
             school=school
         ).select_related(
             "user",
+            "school",
+        )
+
+    def perform_create(self, serializer):
+        school = self.get_school()
+
+        if school is None:
+            serializer.save()
+            return
+
+        serializer.save(
+            school=school
         )
 
 
 class FeePaymentViewSet(SchoolScopedViewSet):
+    """
+    School fee payment API.
+    """
+
     queryset = FeePayment.objects.all()
     serializer_class = FeePaymentSerializer
 
@@ -171,12 +228,14 @@ class FeePaymentViewSet(SchoolScopedViewSet):
         school = self.get_school()
 
         if school is None:
-            return FeePayment.objects.all()
+            return FeePayment.objects.all().select_related(
+                "student"
+            )
 
         return FeePayment.objects.filter(
             student__school=school
         ).select_related(
-            "student",
+            "student"
         )
 
     def perform_create(self, serializer):
@@ -201,6 +260,10 @@ class FeePaymentViewSet(SchoolScopedViewSet):
 
 
 class DashboardViewSet(viewsets.ViewSet):
+    """
+    School dashboard statistics.
+    """
+
     permission_classes = [HasSchoolAccess]
 
     def list(self, request):
@@ -211,6 +274,7 @@ class DashboardViewSet(viewsets.ViewSet):
                 "classrooms": ClassRoom.objects.count(),
                 "payments": FeePayment.objects.count(),
             }
+
         else:
             school = request.user.profile.school
 
@@ -218,12 +282,15 @@ class DashboardViewSet(viewsets.ViewSet):
                 "students": Student.objects.filter(
                     school=school
                 ).count(),
+
                 "teachers": Teacher.objects.filter(
                     school=school
                 ).count(),
+
                 "classrooms": ClassRoom.objects.filter(
                     school=school
                 ).count(),
+
                 "payments": FeePayment.objects.filter(
                     student__school=school
                 ).count(),
