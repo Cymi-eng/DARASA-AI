@@ -24,6 +24,7 @@ class DarasaAPITestCase(APITestCase):
             location="Nairobi",
             phone="0700000001",
         )
+
         self.school_b = School.objects.create(
             name="Future Scholars",
             location="Mombasa",
@@ -35,16 +36,19 @@ class DarasaAPITestCase(APITestCase):
             "ADMIN",
             self.school_a,
         )
+
         self.teacher = self.create_user(
             "teacher_a",
             "TEACHER",
             self.school_a,
         )
+
         self.bursar = self.create_user(
             "bursar_a",
             "BURSAR",
             self.school_a,
         )
+
         self.other_school_admin = self.create_user(
             "admin_b",
             "ADMIN",
@@ -86,10 +90,10 @@ class DarasaAPITestCase(APITestCase):
         )
 
         self.payment_a = FeePayment.objects.create(
-    student=self.student_a,
-    amount="5000.00",
-    status="CONFIRMED",
-)
+            student=self.student_a,
+            amount="5000.00",
+            status="CONFIRMED",
+        )
 
     def create_user(self, username, role, school):
         user = User.objects.create_user(
@@ -122,7 +126,10 @@ class SchoolIsolationTests(DarasaAPITestCase):
             reverse("student-list")
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
 
         student_ids = [
             student["id"]
@@ -171,16 +178,19 @@ class SchoolIsolationTests(DarasaAPITestCase):
 
         self.assertEqual(
             response.status_code,
-            201,
+            400,
         )
 
-        student = Student.objects.get(
-            admission_number="DARASA003"
+        self.assertIn(
+            "school",
+            response.data,
         )
 
         self.assertEqual(
-            student.school_id,
-            self.school_a.id,
+            Student.objects.filter(
+                admission_number="DARASA003"
+            ).count(),
+            0,
         )
 
 
@@ -193,7 +203,10 @@ class RoleAccessTests(DarasaAPITestCase):
             reverse("student-list")
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
 
     def test_teacher_can_access_students(self):
         self.authenticate(self.teacher)
@@ -202,7 +215,10 @@ class RoleAccessTests(DarasaAPITestCase):
             reverse("student-list")
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
 
     def test_bursar_can_access_fee_payments(self):
         self.authenticate(self.bursar)
@@ -211,7 +227,10 @@ class RoleAccessTests(DarasaAPITestCase):
             reverse("feepayment-list")
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
 
     def test_teacher_cannot_access_fee_payments(self):
         self.authenticate(self.teacher)
