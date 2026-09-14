@@ -3,46 +3,52 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import School, Student, UserProfile
+from .models import (
+    ClassRoom,
+    Competency,
+    FeePayment,
+    School,
+    Student,
+    Teacher,
+    UserProfile,
+)
 
 
 User = get_user_model()
 
 
-class SchoolIsolationTests(APITestCase):
+class DarasaAPITestCase(APITestCase):
     def setUp(self):
         self.school_a = School.objects.create(
             name="Darasa Academy",
             location="Nairobi",
             phone="0700000001",
         )
-
         self.school_b = School.objects.create(
             name="Future Scholars",
             location="Mombasa",
             phone="0700000002",
         )
 
-        self.user_a = User.objects.create_user(
-            username="admin_a",
-            password="StrongPassword123!",
+        self.admin = self.create_user(
+            "admin_a",
+            "ADMIN",
+            self.school_a,
         )
-
-        self.user_b = User.objects.create_user(
-            username="admin_b",
-            password="StrongPassword123!",
+        self.teacher = self.create_user(
+            "teacher_a",
+            "TEACHER",
+            self.school_a,
         )
-
-        UserProfile.objects.create(
-            user=self.user_a,
-            school=self.school_a,
-            role="ADMIN",
+        self.bursar = self.create_user(
+            "bursar_a",
+            "BURSAR",
+            self.school_a,
         )
-
-        UserProfile.objects.create(
-            user=self.user_b,
-            school=self.school_b,
-            role="ADMIN",
+        self.other_school_admin = self.create_user(
+            "admin_b",
+            "ADMIN",
+            self.school_b,
         )
 
         self.student_a = Student.objects.create(
@@ -61,6 +67,44 @@ class SchoolIsolationTests(APITestCase):
             school=self.school_b,
         )
 
+        self.classroom_a = ClassRoom.objects.create(
+            school=self.school_a,
+            name="Grade 1 Blue",
+            grade="G1",
+        )
+
+        self.classroom_b = ClassRoom.objects.create(
+            school=self.school_b,
+            name="Grade 1 Red",
+            grade="G1",
+        )
+
+        self.teacher_record = Teacher.objects.create(
+            user=self.teacher,
+            school=self.school_a,
+            phone="0711111111",
+        )
+
+        self.payment_a = FeePayment.objects.create(
+    student=self.student_a,
+    amount="5000.00",
+    status="CONFIRMED",
+)
+
+    def create_user(self, username, role, school):
+        user = User.objects.create_user(
+            username=username,
+            password="StrongPassword123!",
+        )
+
+        UserProfile.objects.create(
+            user=user,
+            school=school,
+            role=role,
+        )
+
+        return user
+
     def authenticate(self, user):
         refresh = RefreshToken.for_user(user)
 
@@ -68,8 +112,11 @@ class SchoolIsolationTests(APITestCase):
             HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}"
         )
 
+
+class SchoolIsolationTests(DarasaAPITestCase):
+
     def test_user_only_sees_students_from_own_school(self):
-        self.authenticate(self.user_a)
+        self.authenticate(self.admin)
 
         response = self.client.get(
             reverse("student-list")
@@ -93,7 +140,7 @@ class SchoolIsolationTests(APITestCase):
         )
 
     def test_user_cannot_access_student_from_another_school(self):
-        self.authenticate(self.user_a)
+        self.authenticate(self.admin)
 
         response = self.client.get(
             reverse(
@@ -107,8 +154,8 @@ class SchoolIsolationTests(APITestCase):
             404,
         )
 
-    def test_school_a_user_cannot_create_student_for_school_b(self):
-        self.authenticate(self.user_a)
+    def test_user_cannot_create_student_for_another_school(self):
+        self.authenticate(self.admin)
 
         response = self.client.post(
             reverse("student-list"),
@@ -136,7 +183,170 @@ class SchoolIsolationTests(APITestCase):
             self.school_a.id,
         )
 
-        self.assertNotEqual(
-            student.school_id,
-            self.school_b.id,
+
+class RoleAccessTests(DarasaAPITestCase):
+
+    def test_admin_can_access_students(self):
+        self.authenticate(self.admin)
+
+        response = self.client.get(
+            reverse("student-list")
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_teacher_can_access_students(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.get(
+            reverse("student-list")
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_bursar_can_access_fee_payments(self):
+        self.authenticate(self.bursar)
+
+        response = self.client.get(
+            reverse("feepayment-list")
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_teacher_cannot_access_fee_payments(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.get(
+            reverse("feepayment-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+    def test_bursar_cannot_access_competencies(self):
+        self.authenticate(self.bursar)
+
+        response = self.client.get(
+            reverse("competency-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+    def test_teacher_cannot_manage_teachers(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.get(
+            reverse("teacher-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+    def test_bursar_cannot_manage_teachers(self):
+        self.authenticate(self.bursar)
+
+        response = self.client.get(
+            reverse("teacher-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+    def test_admin_can_access_teachers(self):
+        self.authenticate(self.admin)
+
+        response = self.client.get(
+            reverse("teacher-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+
+class CrossSchoolSecurityTests(DarasaAPITestCase):
+
+    def test_school_b_admin_cannot_see_school_a_students(self):
+        self.authenticate(self.other_school_admin)
+
+        response = self.client.get(
+            reverse("student-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        student_ids = [
+            student["id"]
+            for student in response.data
+        ]
+
+        self.assertNotIn(
+            self.student_a.id,
+            student_ids,
+        )
+
+    def test_school_b_admin_cannot_access_school_a_classroom(self):
+        self.authenticate(self.other_school_admin)
+
+        response = self.client.get(
+            reverse(
+                "classroom-detail",
+                args=[self.classroom_a.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    def test_school_b_admin_cannot_access_school_a_payment(self):
+        self.authenticate(self.other_school_admin)
+
+        response = self.client.get(
+            reverse(
+                "feepayment-detail",
+                args=[self.payment_a.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+
+class AuthenticationTests(DarasaAPITestCase):
+
+    def test_unauthenticated_user_cannot_access_students(self):
+        response = self.client.get(
+            reverse("student-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            401,
+        )
+
+    def test_unauthenticated_user_cannot_access_dashboard(self):
+        response = self.client.get(
+            reverse("dashboard")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            401,
         )
