@@ -75,26 +75,20 @@ class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
         fields = "__all__"
-
-    def validate_school(self, school):
-        user = self.context["request"].user
-
-        if user.is_superuser:
-            return school
-
-        user_school = get_user_school(user)
-
-        if school.id != user_school.id:
-            raise serializers.ValidationError(
-                "You cannot assign a student to another school."
-            )
-
-        return school
+        read_only_fields = [
+            "school",
+            "created_at",
+        ]
 
     def validate_classroom(self, classroom):
-        school = get_user_school(self.context["request"].user)
+        school = get_user_school(
+            self.context["request"].user
+        )
 
-        if school is not None and classroom.school_id != school.id:
+        if (
+            school is not None
+            and classroom.school_id != school.id
+        ):
             raise serializers.ValidationError(
                 "Classroom does not belong to your school."
             )
@@ -106,21 +100,9 @@ class ClassRoomSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClassRoom
         fields = "__all__"
-
-    def validate_school(self, school):
-        user = self.context["request"].user
-
-        if user.is_superuser:
-            return school
-
-        user_school = get_user_school(user)
-
-        if school.id != user_school.id:
-            raise serializers.ValidationError(
-                "You cannot assign a classroom to another school."
-            )
-
-        return school
+        read_only_fields = [
+            "school",
+        ]
 
 
 class SchoolSerializer(serializers.ModelSerializer):
@@ -139,23 +121,10 @@ class TeacherSerializer(serializers.ModelSerializer):
         model = Teacher
         fields = "__all__"
 
-    def validate_school(self, school):
-        user = self.context["request"].user
-
-        if user.is_superuser:
-            return school
-
-        user_school = get_user_school(user)
-
-        if school.id != user_school.id:
-            raise serializers.ValidationError(
-                "You cannot assign a teacher to another school."
-            )
-
-        return school
-
-    def validate_classroom(self, classrooms):
-        school = get_user_school(self.context["request"].user)
+    def validate_classrooms(self, classrooms):
+        school = get_user_school(
+            self.context["request"].user
+        )
 
         if school is None:
             return classrooms

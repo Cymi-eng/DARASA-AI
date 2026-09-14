@@ -45,7 +45,7 @@ class IsSchoolAdmin(BasePermission):
 
 class IsTeacher(BasePermission):
     """
-    Allows school teachers or Django superusers.
+    Allows only teachers or Django superusers.
     """
 
     def has_permission(self, request, view):
@@ -66,7 +66,7 @@ class IsTeacher(BasePermission):
 
 class IsBursar(BasePermission):
     """
-    Allows school bursars or Django superusers.
+    Allows only bursars or Django superusers.
     """
 
     def has_permission(self, request, view):
