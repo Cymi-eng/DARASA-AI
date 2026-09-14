@@ -8,21 +8,58 @@ class School(models.Model):
     phone = models.CharField(max_length=15, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["name"]
+
     def __str__(self):
         return self.name
 
 
+class UserProfile(models.Model):
+    ROLE_ADMIN = "ADMIN"
+    ROLE_TEACHER = "TEACHER"
+    ROLE_BURSAR = "BURSAR"
+    ROLE_STUDENT = "STUDENT"
+
+    ROLE_CHOICES = [
+        (ROLE_ADMIN, "Admin"),
+        (ROLE_TEACHER, "Teacher"),
+        (ROLE_BURSAR, "Bursar"),
+        (ROLE_STUDENT, "Student"),
+    ]
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    school = models.ForeignKey(
+        School,
+        on_delete=models.CASCADE,
+        related_name="user_profiles",
+        null=True,
+        blank=True,
+    )
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default=ROLE_TEACHER,
+    )
+
+    def __str__(self):
+        return f"{self.user.username} - {self.role}"
+
+
 class Student(models.Model):
     GRADE_CHOICES = [
-        ('PP1', 'Pre-Primary 1'),
-        ('PP2', 'Pre-Primary 2'),
-        ('G1', 'Grade 1'),
-        ('G2', 'Grade 2'),
-        ('G3', 'Grade 3'),
-        ('G4', 'Grade 4'),
-        ('G5', 'Grade 5'),
-        ('G6', 'Grade 6'),
-        # extend as needed for JSS/Senior School
+        ("PP1", "Pre-Primary 1"),
+        ("PP2", "Pre-Primary 2"),
+        ("G1", "Grade 1"),
+        ("G2", "Grade 2"),
+        ("G3", "Grade 3"),
+        ("G4", "Grade 4"),
+        ("G5", "Grade 5"),
+        ("G6", "Grade 6"),
     ]
 
     first_name = models.CharField(max_length=100)
@@ -32,8 +69,23 @@ class Student(models.Model):
     date_of_birth = models.DateField(null=True, blank=True)
     guardian_name = models.CharField(max_length=150, blank=True)
     guardian_phone = models.CharField(max_length=15, blank=True)
-    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='students', null=True, blank=True)
-    classroom = models.ForeignKey('ClassRoom', on_delete=models.SET_NULL, related_name='students', null=True, blank=True)
+
+    school = models.ForeignKey(
+        School,
+        on_delete=models.CASCADE,
+        related_name="students",
+        null=True,
+        blank=True,
+    )
+
+    classroom = models.ForeignKey(
+        "ClassRoom",
+        on_delete=models.SET_NULL,
+        related_name="students",
+        null=True,
+        blank=True,
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -41,9 +93,25 @@ class Student(models.Model):
 
 
 class ClassRoom(models.Model):
-    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='classrooms')
+    school = models.ForeignKey(
+        School,
+        on_delete=models.CASCADE,
+        related_name="classrooms",
+    )
     name = models.CharField(max_length=50)
-    grade = models.CharField(max_length=10, choices=Student.GRADE_CHOICES)
+    grade = models.CharField(
+        max_length=10,
+        choices=Student.GRADE_CHOICES,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "name"],
+                name="unique_classroom_per_school",
+            )
+        ]
+        ordering = ["school", "grade", "name"]
 
     def __str__(self):
         return f"{self.name} - {self.school.name}"
@@ -51,8 +119,16 @@ class ClassRoom(models.Model):
 
 class Teacher(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='teachers')
-    classrooms = models.ManyToManyField(ClassRoom, related_name='teachers', blank=True)
+    school = models.ForeignKey(
+        School,
+        on_delete=models.CASCADE,
+        related_name="teachers",
+    )
+    classrooms = models.ManyToManyField(
+        ClassRoom,
+        related_name="teachers",
+        blank=True,
+    )
     phone = models.CharField(max_length=15, blank=True)
 
     def __str__(self):
@@ -61,25 +137,32 @@ class Teacher(models.Model):
 
 class Competency(models.Model):
     LEARNING_AREA_CHOICES = [
-        ('MATH', 'Mathematics'),
-        ('ENG', 'English'),
-        ('KIS', 'Kiswahili'),
-        ('SCI', 'Science & Technology'),
-        ('SST', 'Social Studies'),
-        ('CRE', 'Christian Religious Education'),
-        ('CA', 'Creative Arts'),
-        ('AGR', 'Agriculture'),
+        ("MATH", "Mathematics"),
+        ("ENG", "English"),
+        ("KIS", "Kiswahili"),
+        ("SCI", "Science & Technology"),
+        ("SST", "Social Studies"),
+        ("CRE", "Christian Religious Education"),
+        ("CA", "Creative Arts"),
+        ("AGR", "Agriculture"),
     ]
 
     MASTERY_LEVELS = [
-        ('EE', 'Exceeds Expectation'),
-        ('ME', 'Meets Expectation'),
-        ('AE', 'Approaches Expectation'),
-        ('BE', 'Below Expectation'),
+        ("EE", "Exceeds Expectation"),
+        ("ME", "Meets Expectation"),
+        ("AE", "Approaches Expectation"),
+        ("BE", "Below Expectation"),
     ]
 
-    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='competencies')
-    learning_area = models.CharField(max_length=10, choices=LEARNING_AREA_CHOICES)
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="competencies",
+    )
+    learning_area = models.CharField(
+        max_length=10,
+        choices=LEARNING_AREA_CHOICES,
+    )
     strand = models.CharField(max_length=150)
     sub_strand = models.CharField(max_length=150, blank=True)
     mastery_level = models.CharField(max_length=2, choices=MASTERY_LEVELS)
@@ -88,25 +171,39 @@ class Competency(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-assessed_on']
+        ordering = ["-assessed_on"]
 
     def __str__(self):
-        return f"{self.student} - {self.learning_area} ({self.mastery_level}) on {self.assessed_on}"
+        return (
+            f"{self.student} - {self.learning_area} "
+            f"({self.mastery_level}) on {self.assessed_on}"
+        )
 
 
 class FeePayment(models.Model):
     STATUS_CHOICES = [
-        ('PENDING', 'Pending'),
-        ('CONFIRMED', 'Confirmed'),
-        ('FAILED', 'Failed'),
+        ("PENDING", "Pending"),
+        ("CONFIRMED", "Confirmed"),
+        ("FAILED", "Failed"),
     ]
 
-    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='fee_payments')
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="fee_payments",
+    )
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     mpesa_receipt_number = models.CharField(max_length=30, blank=True)
     phone_number = models.CharField(max_length=15)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default="PENDING",
+    )
     paid_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-paid_at"]
 
     def __str__(self):
         return f"{self.student} - KES {self.amount} ({self.status})"
