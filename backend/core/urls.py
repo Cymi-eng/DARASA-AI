@@ -18,12 +18,35 @@ from .views import (
 
 router = DefaultRouter()
 
-router.register(r"students", StudentViewSet)
-router.register(r"competencies", CompetencyViewSet)
-router.register(r"schools", SchoolViewSet)
-router.register(r"classrooms", ClassRoomViewSet)
-router.register(r"teachers", TeacherViewSet)
-router.register(r"fee-payments", FeePaymentViewSet)
+router.register(
+    r"students",
+    StudentViewSet,
+)
+
+router.register(
+    r"competencies",
+    CompetencyViewSet,
+)
+
+router.register(
+    r"schools",
+    SchoolViewSet,
+)
+
+router.register(
+    r"classrooms",
+    ClassRoomViewSet,
+)
+
+router.register(
+    r"teachers",
+    TeacherViewSet,
+)
+
+router.register(
+    r"fee-payments",
+    FeePaymentViewSet,
+)
 
 
 urlpatterns = [
@@ -32,16 +55,23 @@ urlpatterns = [
         TokenObtainPairView.as_view(),
         name="token_obtain_pair",
     ),
+
     path(
         "auth/token/refresh/",
         TokenRefreshView.as_view(),
         name="token_refresh",
     ),
+
     path(
         "dashboard/",
-        DashboardViewSet.as_view({"get": "list"}),
+        DashboardViewSet.as_view(
+            {
+                "get": "list"
+            }
+        ),
         name="dashboard",
     ),
 ]
+
 
 urlpatterns += router.urls
