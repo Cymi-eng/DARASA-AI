@@ -87,9 +87,39 @@ class StudentSerializer(serializers.ModelSerializer):
         model = Student
         fields = "__all__"
         read_only_fields = [
-            "school",
             "created_at",
         ]
+
+    def validate(self, attrs):
+        """
+        Prevent a user from assigning a student
+        to another school.
+        """
+
+        request = self.context.get("request")
+
+        if not request or not request.user.is_authenticated:
+            return attrs
+
+        school = get_user_school(request.user)
+
+        if school is None:
+            return attrs
+
+        submitted_school = attrs.get("school")
+
+        if submitted_school is not None:
+            if submitted_school.id != school.id:
+                raise serializers.ValidationError(
+                    {
+                        "school": (
+                            "You cannot create or assign a "
+                            "student to another school."
+                        )
+                    }
+                )
+
+        return attrs
 
     def validate_classroom(self, classroom):
         school = get_user_school(
