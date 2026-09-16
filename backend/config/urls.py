@@ -14,6 +14,7 @@ from core.views import (
     ClassRoomViewSet,
     TeacherViewSet,
     FeePaymentViewSet,
+    FeeLedgerViewSet,
     DashboardViewSet,
 )
 
@@ -58,6 +59,11 @@ router.register(
     FeePaymentViewSet,
 )
 
+router.register(
+    r"fee-ledger",
+    FeeLedgerViewSet,
+)
+
 
 urlpatterns = [
     path(
@@ -90,9 +96,7 @@ urlpatterns = [
         mpesa_callback,
         name="mpesa_callback",
     ),
-]
 
-urlpatterns += [
     path(
         "api/",
         router.urls,
