@@ -1,3 +1,5 @@
+from django.contrib.auth import get_user_model
+
 from rest_framework import status, viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -23,7 +25,11 @@ from .serializers import (
     SchoolSerializer,
     StudentSerializer,
     TeacherSerializer,
+    UserAccountSerializer,
 )
+
+
+User = get_user_model()
 
 
 class SchoolScopedViewSet(viewsets.ModelViewSet):
@@ -46,6 +52,47 @@ class SchoolScopedViewSet(viewsets.ModelViewSet):
         return self.request.user.profile.school
 
 
+class UserAccountViewSet(viewsets.ModelViewSet):
+    """
+    School user account management API.
+    """
+
+    queryset = User.objects.all().select_related(
+        "profile",
+        "profile__school",
+    )
+
+    serializer_class = UserAccountSerializer
+    permission_classes = [IsSchoolAdmin]
+
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return User.objects.all().select_related(
+                "profile",
+                "profile__school",
+            )
+
+        school = self.request.user.profile.school
+
+        return User.objects.filter(
+            profile__school=school
+        ).select_related(
+            "profile",
+            "profile__school",
+        )
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.pk == self.request.user.pk:
+            raise ValidationError(
+                "You cannot delete your own account."
+            )
+
+        instance.delete()
+
+
 class StudentViewSet(SchoolScopedViewSet):
     """
     Student management API.
@@ -63,18 +110,31 @@ class StudentViewSet(SchoolScopedViewSet):
     def get_queryset(self):
         school = self.get_school()
 
-        if school is None:
-            return Student.objects.all().select_related(
-                "school",
-                "classroom",
-            )
-
-        return Student.objects.filter(
-            school=school
-        ).select_related(
+        queryset = Student.objects.all().select_related(
             "school",
             "classroom",
         )
+
+        if school is not None:
+            queryset = queryset.filter(
+                school=school
+            )
+
+        grade = self.request.query_params.get("grade")
+
+        if grade:
+            queryset = queryset.filter(
+                grade=grade
+            )
+
+        classroom = self.request.query_params.get("classroom")
+
+        if classroom:
+            queryset = queryset.filter(
+                classroom_id=classroom
+            )
+
+        return queryset
 
     def perform_create(self, serializer):
         school = self.get_school()
@@ -91,6 +151,13 @@ class StudentViewSet(SchoolScopedViewSet):
 class CompetencyViewSet(SchoolScopedViewSet):
     """
     CBC competency assessment API.
+
+    Supports filtering by:
+
+    - student
+    - learning_area
+    - mastery_level
+    - assessed_on
     """
 
     queryset = Competency.objects.all()
@@ -102,16 +169,51 @@ class CompetencyViewSet(SchoolScopedViewSet):
     def get_queryset(self):
         school = self.get_school()
 
-        if school is None:
-            return Competency.objects.all().select_related(
-                "student"
+        queryset = Competency.objects.all().select_related(
+            "student",
+            "student__school",
+        )
+
+        if school is not None:
+            queryset = queryset.filter(
+                student__school=school
             )
 
-        return Competency.objects.filter(
-            student__school=school
-        ).select_related(
-            "student"
+        student = self.request.query_params.get("student")
+
+        if student:
+            queryset = queryset.filter(
+                student_id=student
+            )
+
+        learning_area = self.request.query_params.get(
+            "learning_area"
         )
+
+        if learning_area:
+            queryset = queryset.filter(
+                learning_area=learning_area
+            )
+
+        mastery_level = self.request.query_params.get(
+            "mastery_level"
+        )
+
+        if mastery_level:
+            queryset = queryset.filter(
+                mastery_level=mastery_level
+            )
+
+        assessed_on = self.request.query_params.get(
+            "assessed_on"
+        )
+
+        if assessed_on:
+            queryset = queryset.filter(
+                assessed_on=assessed_on
+            )
+
+        return queryset
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
@@ -151,16 +253,23 @@ class ClassRoomViewSet(SchoolScopedViewSet):
     def get_queryset(self):
         school = self.get_school()
 
-        if school is None:
-            return ClassRoom.objects.all().select_related(
-                "school"
-            )
-
-        return ClassRoom.objects.filter(
-            school=school
-        ).select_related(
+        queryset = ClassRoom.objects.all().select_related(
             "school"
         )
+
+        if school is not None:
+            queryset = queryset.filter(
+                school=school
+            )
+
+        grade = self.request.query_params.get("grade")
+
+        if grade:
+            queryset = queryset.filter(
+                grade=grade
+            )
+
+        return queryset
 
     def perform_create(self, serializer):
         school = self.get_school()
@@ -188,18 +297,17 @@ class TeacherViewSet(SchoolScopedViewSet):
     def get_queryset(self):
         school = self.get_school()
 
-        if school is None:
-            return Teacher.objects.all().select_related(
-                "user",
-                "school",
-            )
-
-        return Teacher.objects.filter(
-            school=school
-        ).select_related(
+        queryset = Teacher.objects.all().select_related(
             "user",
             "school",
         )
+
+        if school is not None:
+            queryset = queryset.filter(
+                school=school
+            )
+
+        return queryset
 
     def perform_create(self, serializer):
         school = self.get_school()
@@ -227,16 +335,33 @@ class FeePaymentViewSet(SchoolScopedViewSet):
     def get_queryset(self):
         school = self.get_school()
 
-        if school is None:
-            return FeePayment.objects.all().select_related(
-                "student"
+        queryset = FeePayment.objects.all().select_related(
+            "student",
+            "student__school",
+        )
+
+        if school is not None:
+            queryset = queryset.filter(
+                student__school=school
             )
 
-        return FeePayment.objects.filter(
-            student__school=school
-        ).select_related(
-            "student"
+        student = self.request.query_params.get("student")
+
+        if student:
+            queryset = queryset.filter(
+                student_id=student
+            )
+
+        status_filter = self.request.query_params.get(
+            "status"
         )
+
+        if status_filter:
+            queryset = queryset.filter(
+                status=status_filter
+            )
+
+        return queryset
 
     def perform_create(self, serializer):
         school = self.get_school()
@@ -251,7 +376,8 @@ class FeePaymentViewSet(SchoolScopedViewSet):
             raise ValidationError(
                 {
                     "student": (
-                        "Student does not belong to your school."
+                        "Student does not belong "
+                        "to your school."
                     )
                 }
             )
