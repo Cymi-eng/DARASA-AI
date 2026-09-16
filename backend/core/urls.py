@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import (
 )
 
 from .views import (
+    UserAccountViewSet,
     StudentViewSet,
     CompetencyViewSet,
     SchoolViewSet,
@@ -17,6 +18,12 @@ from .views import (
 
 
 router = DefaultRouter()
+
+router.register(
+    r"users",
+    UserAccountViewSet,
+    basename="user",
+)
 
 router.register(
     r"students",
@@ -65,13 +72,10 @@ urlpatterns = [
     path(
         "dashboard/",
         DashboardViewSet.as_view(
-            {
-                "get": "list"
-            }
+            {"get": "list"}
         ),
         name="dashboard",
     ),
 ]
-
 
 urlpatterns += router.urls
