@@ -5,6 +5,7 @@ from .classroom import ClassRoomSerializer
 from .competency import CompetencySerializer
 from .fee_payment import FeePaymentSerializer
 from .fee_ledger import FeeLedgerEntrySerializer
+from .notification import NotificationSerializer
 
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "CompetencySerializer",
     "FeePaymentSerializer",
     "FeeLedgerEntrySerializer",
+    "NotificationSerializer",
 ]
