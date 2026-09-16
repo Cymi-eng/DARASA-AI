@@ -51,11 +51,11 @@ class MpesaService:
             settings,
             "MPESA_ENVIRONMENT",
             "sandbox",
-        )
+        ).lower().strip()
 
         if self.environment == "production":
             self.base_url = (
-                "https://api.safaricom.et/"
+                "https://api.safaricom.co.ke/"
             )
         else:
             self.base_url = (
@@ -83,6 +83,15 @@ class MpesaService:
                 + ", ".join(missing)
             )
 
+        if self.environment not in {
+            "sandbox",
+            "production",
+        }:
+            raise MpesaError(
+                "MPESA_ENVIRONMENT must be "
+                "'sandbox' or 'production'."
+            )
+
     def get_access_token(self):
         """
         Request an OAuth access token from Daraja.
@@ -105,23 +114,33 @@ class MpesaService:
             "?grant_type=client_credentials"
         )
 
-        response = requests.get(
-            url,
-            headers={
-                "Authorization": (
-                    f"Basic {encoded_credentials}"
-                ),
-                "Accept": "application/json",
-            },
-            timeout=30,
-        )
+        try:
+            response = requests.get(
+                url,
+                headers={
+                    "Authorization": (
+                        f"Basic {encoded_credentials}"
+                    ),
+                    "Accept": "application/json",
+                },
+                timeout=30,
+            )
+        except requests.RequestException as exc:
+            raise MpesaError(
+                "Unable to connect to M-Pesa."
+            ) from exc
 
         if not response.ok:
             raise MpesaError(
                 "Failed to obtain M-Pesa access token."
             )
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise MpesaError(
+                "M-Pesa returned an invalid response."
+            ) from exc
 
         access_token = data.get("access_token")
 
@@ -191,27 +210,37 @@ class MpesaService:
             "TransactionDesc": transaction_desc,
         }
 
-        response = requests.post(
-            url,
-            json=payload,
-            headers={
-                "Authorization": (
-                    f"Bearer {access_token}"
-                ),
-                "Content-Type": (
-                    "application/json"
-                ),
-                "Accept": "application/json",
-            },
-            timeout=30,
-        )
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers={
+                    "Authorization": (
+                        f"Bearer {access_token}"
+                    ),
+                    "Content-Type": (
+                        "application/json"
+                    ),
+                    "Accept": "application/json",
+                },
+                timeout=30,
+            )
+        except requests.RequestException as exc:
+            raise MpesaError(
+                "Unable to connect to M-Pesa."
+            ) from exc
 
         if not response.ok:
             raise MpesaError(
                 "M-Pesa STK Push request failed."
             )
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise MpesaError(
+                "M-Pesa returned an invalid response."
+            ) from exc
 
         response_code = data.get(
             "ResponseCode"
