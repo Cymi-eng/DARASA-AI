@@ -7,6 +7,7 @@ from .teachers import TeacherViewSet
 from .competencies import CompetencyViewSet
 from .fee_payments import FeePaymentViewSet
 from .fee_ledger import FeeLedgerViewSet
+from .notifications import NotificationViewSet
 from .dashboard import DashboardViewSet
 
 
@@ -20,5 +21,6 @@ __all__ = [
     "CompetencyViewSet",
     "FeePaymentViewSet",
     "FeeLedgerViewSet",
+    "NotificationViewSet",
     "DashboardViewSet",
 ]
