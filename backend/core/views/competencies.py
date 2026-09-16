@@ -24,6 +24,10 @@ class CompetencyViewSet(SchoolScopedViewSet):
     - filter assessments
     - view student competency summaries
     - view classroom competency summaries
+    - identify student intervention areas
+
+    All assessments are automatically isolated
+    to the authenticated user's school.
     """
 
     queryset = Competency.objects.all()
@@ -47,7 +51,9 @@ class CompetencyViewSet(SchoolScopedViewSet):
             )
 
         # Filter by student.
-        student = self.request.query_params.get("student")
+        student = self.request.query_params.get(
+            "student"
+        )
 
         if student:
             queryset = queryset.filter(
@@ -65,7 +71,9 @@ class CompetencyViewSet(SchoolScopedViewSet):
             )
 
         # Filter by strand.
-        strand = self.request.query_params.get("strand")
+        strand = self.request.query_params.get(
+            "strand"
+        )
 
         if strand:
             queryset = queryset.filter(
@@ -189,8 +197,7 @@ class CompetencyViewSet(SchoolScopedViewSet):
 
     def _mastery_distribution(self, competencies):
         """
-        Return the number and percentage of assessments
-        at each CBC mastery level.
+        Return CBC mastery counts and percentages.
         """
 
         total = competencies.count()
@@ -246,7 +253,9 @@ class CompetencyViewSet(SchoolScopedViewSet):
             )
         except Student.DoesNotExist:
             return Response(
-                {"detail": "Student not found."},
+                {
+                    "detail": "Student not found."
+                },
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -256,7 +265,9 @@ class CompetencyViewSet(SchoolScopedViewSet):
             and student.school_id != school.id
         ):
             return Response(
-                {"detail": "Student not found."},
+                {
+                    "detail": "Student not found."
+                },
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -283,7 +294,8 @@ class CompetencyViewSet(SchoolScopedViewSet):
 
         intervention_required = (
             mastery["counts"]["BE"] > 0
-            or mastery["counts"]["AE"] > mastery["counts"]["EE"]
+            or mastery["counts"]["AE"]
+            > mastery["counts"]["EE"]
         )
 
         return Response(
@@ -312,6 +324,142 @@ class CompetencyViewSet(SchoolScopedViewSet):
                 "intervention_required": (
                     intervention_required
                 ),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path=r"student/(?P<student_id>[^/.]+)/interventions",
+    )
+    def student_interventions(
+        self,
+        request,
+        student_id=None,
+    ):
+        """
+        Identify learning areas, strands, and sub-strands
+        where a student may require intervention.
+
+        Intervention is based on the student's latest
+        assessment for each competency area.
+
+        BE = high priority
+        AE = medium priority
+        """
+
+        school = self.get_school()
+
+        try:
+            student = Student.objects.select_related(
+                "school",
+                "classroom",
+            ).get(
+                id=student_id
+            )
+        except Student.DoesNotExist:
+            return Response(
+                {
+                    "detail": "Student not found."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Enforce school isolation.
+        if (
+            school is not None
+            and student.school_id != school.id
+        ):
+            return Response(
+                {
+                    "detail": "Student not found."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        competencies = Competency.objects.filter(
+            student=student
+        ).order_by(
+            "learning_area",
+            "strand",
+            "sub_strand",
+            "-assessed_on",
+            "-created_at",
+        )
+
+        latest_assessments = {}
+
+        for competency in competencies:
+            key = (
+                competency.learning_area,
+                competency.strand,
+                competency.sub_strand,
+            )
+
+            if key not in latest_assessments:
+                latest_assessments[key] = competency
+
+        interventions = []
+
+        for competency in latest_assessments.values():
+            if competency.mastery_level not in [
+                "BE",
+                "AE",
+            ]:
+                continue
+
+            interventions.append(
+                {
+                    "learning_area": (
+                        competency.learning_area
+                    ),
+                    "strand": competency.strand,
+                    "sub_strand": competency.sub_strand,
+                    "mastery_level": (
+                        competency.mastery_level
+                    ),
+                    "assessed_on": (
+                        competency.assessed_on
+                    ),
+                    "priority": (
+                        "high"
+                        if competency.mastery_level == "BE"
+                        else "medium"
+                    ),
+                    "reason": (
+                        "Below Expectation"
+                        if competency.mastery_level == "BE"
+                        else "Approaches Expectation"
+                    ),
+                }
+            )
+
+        return Response(
+            {
+                "student": {
+                    "id": student.id,
+                    "name": (
+                        f"{student.first_name} "
+                        f"{student.last_name}"
+                    ),
+                    "admission_number": (
+                        student.admission_number
+                    ),
+                    "grade": student.grade,
+                    "classroom": (
+                        student.classroom.name
+                        if student.classroom
+                        else None
+                    ),
+                },
+                "total_interventions": len(
+                    interventions
+                ),
+                "intervention_required": bool(
+                    interventions
+                ),
+                "interventions": interventions,
             },
             status=status.HTTP_200_OK,
         )
@@ -349,7 +497,9 @@ class CompetencyViewSet(SchoolScopedViewSet):
 
         if not students.exists():
             return Response(
-                {"detail": "Classroom not found."},
+                {
+                    "detail": "Classroom not found."
+                },
                 status=status.HTTP_404_NOT_FOUND,
             )
 
