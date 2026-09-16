@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import status
@@ -83,18 +84,18 @@ def mpesa_callback(request):
         )
 
     callback_metadata = (
-        stk_callback.get("CallbackMetadata", {})
-        .get("Item", [])
+        stk_callback.get(
+            "CallbackMetadata",
+            {},
+        ).get(
+            "Item",
+            [],
+        )
     )
 
     receipt_number = _get_callback_item(
         callback_metadata,
         "MpesaReceiptNumber",
-    )
-
-    transaction_date = _get_callback_item(
-        callback_metadata,
-        "TransactionDate",
     )
 
     phone_number = _get_callback_item(
@@ -127,6 +128,9 @@ def mpesa_callback(request):
 
             payment.failure_reason = ""
 
+            if payment.paid_at is None:
+                payment.paid_at = timezone.now()
+
             payment.save(
                 update_fields=[
                     "status",
@@ -135,6 +139,7 @@ def mpesa_callback(request):
                     "merchant_request_id",
                     "phone_number",
                     "failure_reason",
+                    "paid_at",
                     "updated_at",
                 ]
             )
@@ -164,9 +169,9 @@ def mpesa_callback(request):
     return Response(
         {
             "ResultCode": 0,
-            "ResultDesc": "Callback processed successfully.",
-            "checkout_request_id": checkout_request_id,
-            "transaction_date": transaction_date,
+            "ResultDesc": (
+                "Callback processed successfully."
+            ),
         },
         status=status.HTTP_200_OK,
     )
