@@ -1,6 +1,8 @@
+from django.utils import timezone
+
 from rest_framework import serializers
 
-from ..models import Competency, Student
+from ..models import Competency
 
 
 class CompetencySerializer(serializers.ModelSerializer):
@@ -21,6 +23,46 @@ class CompetencySerializer(serializers.ModelSerializer):
             "id",
             "created_at",
         ]
+
+    def validate_learning_area(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Learning area cannot be empty."
+            )
+
+        return value
+
+    def validate_strand(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Strand cannot be empty."
+            )
+
+        return value
+
+    def validate_sub_strand(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Sub-strand cannot be empty."
+            )
+
+        return value
+
+    def validate_assessed_on(self, value):
+        today = timezone.localdate()
+
+        if value > today:
+            raise serializers.ValidationError(
+                "Assessment date cannot be in the future."
+            )
+
+        return value
 
     def validate(self, attrs):
         request = self.context.get("request")
