@@ -6,6 +6,7 @@ from .teacher import Teacher
 from .competency import Competency
 from .fee_payment import FeePayment
 from .fee_ledger import FeeLedgerEntry
+from .notification import Notification
 
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "Competency",
     "FeePayment",
     "FeeLedgerEntry",
+    "Notification",
 ]
