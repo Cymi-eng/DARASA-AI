@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from ..models import FeePayment
+from ..models import FeeLedgerEntry, FeePayment
 
 
 def _get_callback_item(metadata, item_name):
@@ -29,8 +29,8 @@ def mpesa_callback(request):
     """
     Receive and process an M-Pesa STK Push callback.
 
-    Daraja sends the transaction result to this endpoint
-    after the customer completes or cancels the payment.
+    Successful payments are confirmed and recorded
+    in the fee ledger.
     """
 
     body = request.data
@@ -69,7 +69,9 @@ def mpesa_callback(request):
         )
 
     try:
-        payment = FeePayment.objects.get(
+        payment = FeePayment.objects.select_related(
+            "student"
+        ).get(
             checkout_request_id=checkout_request_id
         )
     except FeePayment.DoesNotExist:
@@ -143,6 +145,27 @@ def mpesa_callback(request):
                     "updated_at",
                 ]
             )
+
+            ledger_exists = FeeLedgerEntry.objects.filter(
+                payment=payment,
+                entry_type="PAYMENT",
+            ).exists()
+
+            if not ledger_exists:
+                FeeLedgerEntry.objects.create(
+                    payment=payment,
+                    student=payment.student,
+                    entry_type="PAYMENT",
+                    amount=payment.amount,
+                    reference=(
+                        payment.mpesa_receipt_number
+                        or payment.transaction_id
+                        or payment.checkout_request_id
+                    ),
+                    description=(
+                        "M-Pesa school fee payment"
+                    ),
+                )
 
         else:
             payment.status = "FAILED"
