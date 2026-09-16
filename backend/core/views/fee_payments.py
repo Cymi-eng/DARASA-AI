@@ -4,22 +4,11 @@ from rest_framework.exceptions import ValidationError
 from ..models import FeePayment
 from ..permissions import IsAdminOrBursar
 from ..serializers import FeePaymentSerializer
+from ..services.mpesa import MpesaError, MpesaService
 from .base import SchoolScopedViewSet
 
 
 class FeePaymentViewSet(SchoolScopedViewSet):
-    """
-    School fee payment API.
-
-    Only school administrators and bursars can
-    manage fee payments.
-
-    Supports filtering by:
-
-    - student
-    - payment status
-    """
-
     queryset = FeePayment.objects.all()
     serializer_class = FeePaymentSerializer
 
@@ -34,24 +23,18 @@ class FeePaymentViewSet(SchoolScopedViewSet):
             "student__school",
         )
 
-        # Superusers can access payments across
-        # all schools.
         if school is not None:
             queryset = queryset.filter(
                 student__school=school
             )
 
-        # Filter by student.
-        student = self.request.query_params.get(
-            "student"
-        )
+        student = self.request.query_params.get("student")
 
         if student:
             queryset = queryset.filter(
                 student_id=student
             )
 
-        # Filter by payment status.
         payment_status = self.request.query_params.get(
             "status"
         )
@@ -67,22 +50,11 @@ class FeePaymentViewSet(SchoolScopedViewSet):
         )
 
     def perform_create(self, serializer):
-        """
-        Create a payment.
-
-        Normal users can only create payments for
-        students belonging to their own school.
-        """
-
         school = self.get_school()
-
-        if school is None:
-            serializer.save()
-            return
 
         student = serializer.validated_data["student"]
 
-        if student.school_id != school.id:
+        if school is not None and student.school_id != school.id:
             raise ValidationError(
                 {
                     "student": (
@@ -92,28 +64,97 @@ class FeePaymentViewSet(SchoolScopedViewSet):
                 }
             )
 
-        serializer.save()
+        payment = serializer.save(
+            status="PENDING"
+        )
+
+        try:
+            mpesa = MpesaService()
+
+            response = mpesa.initiate_stk_push(
+                phone_number=payment.phone_number,
+                amount=payment.amount,
+                account_reference=(
+                    payment.student.admission_number
+                ),
+                transaction_desc="School fee payment",
+            )
+
+        except MpesaError as exc:
+            payment.status = "FAILED"
+            payment.failure_reason = str(exc)
+            payment.save(
+                update_fields=[
+                    "status",
+                    "failure_reason",
+                    "updated_at",
+                ]
+            )
+
+            raise ValidationError(
+                {
+                    "mpesa": str(exc)
+                }
+            )
+
+        checkout_request_id = response.get(
+            "CheckoutRequestID"
+        )
+
+        merchant_request_id = response.get(
+            "MerchantRequestID"
+        )
+
+        if not checkout_request_id:
+            payment.status = "FAILED"
+            payment.failure_reason = (
+                "M-Pesa did not return a "
+                "CheckoutRequestID."
+            )
+
+            payment.save(
+                update_fields=[
+                    "status",
+                    "failure_reason",
+                    "updated_at",
+                ]
+            )
+
+            raise ValidationError(
+                {
+                    "mpesa": (
+                        "M-Pesa did not return a "
+                        "CheckoutRequestID."
+                    )
+                }
+            )
+
+        payment.checkout_request_id = (
+            checkout_request_id
+        )
+
+        if merchant_request_id:
+            payment.merchant_request_id = (
+                merchant_request_id
+            )
+
+        payment.save(
+            update_fields=[
+                "checkout_request_id",
+                "merchant_request_id",
+                "updated_at",
+            ]
+        )
 
     def perform_update(self, serializer):
-        """
-        Update a payment.
-
-        The student's school is checked again before
-        saving to prevent cross-school reassignment.
-        """
-
         school = self.get_school()
-
-        if school is None:
-            serializer.save()
-            return
 
         student = serializer.validated_data.get(
             "student",
             serializer.instance.student,
         )
 
-        if student.school_id != school.id:
+        if school is not None and student.school_id != school.id:
             raise ValidationError(
                 {
                     "student": (
