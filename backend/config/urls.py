@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path
+
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -15,6 +16,7 @@ from core.views import (
     TeacherViewSet,
     FeePaymentViewSet,
     FeeLedgerViewSet,
+    NotificationViewSet,
     DashboardViewSet,
 )
 
@@ -22,6 +24,7 @@ from core.views.mpesa import mpesa_callback
 
 
 router = DefaultRouter()
+
 
 router.register(
     r"users",
@@ -62,6 +65,11 @@ router.register(
 router.register(
     r"fee-ledger",
     FeeLedgerViewSet,
+)
+
+router.register(
+    r"notifications",
+    NotificationViewSet,
 )
 
 
