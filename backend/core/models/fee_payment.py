@@ -1,5 +1,6 @@
 from django.db import models
 
+
 from .student import Student
 
 
@@ -60,7 +61,8 @@ class FeePayment(models.Model):
     )
 
     paid_at = models.DateTimeField(
-        auto_now_add=True,
+        null=True,
+        blank=True,
     )
 
     updated_at = models.DateTimeField(
@@ -68,7 +70,7 @@ class FeePayment(models.Model):
     )
 
     class Meta:
-        ordering = ["-paid_at"]
+        ordering = ["-paid_at", "-id"]
 
     def __str__(self):
         return (
