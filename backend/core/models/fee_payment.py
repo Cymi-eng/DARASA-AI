@@ -30,14 +30,41 @@ class FeePayment(models.Model):
         max_length=15,
     )
 
+    transaction_id = models.CharField(
+        max_length=100,
+        unique=True,
+        blank=True,
+    )
+
+    checkout_request_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+    )
+
+    merchant_request_id = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+    )
+
     status = models.CharField(
         max_length=10,
         choices=STATUS_CHOICES,
         default="PENDING",
+        db_index=True,
+    )
+
+    failure_reason = models.TextField(
+        blank=True,
     )
 
     paid_at = models.DateTimeField(
         auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
     )
 
     class Meta:
