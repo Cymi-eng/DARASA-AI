@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from ..models import Student, School, ClassRoom
+from ..models import Student, School
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -22,7 +22,6 @@ class StudentSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "created_at",
-            "school",
         ]
 
     def validate(self, attrs):
@@ -41,6 +40,18 @@ class StudentSerializer(serializers.ModelSerializer):
         if not profile or not profile.school_id:
             raise serializers.ValidationError(
                 "Your account is not associated with a school."
+            )
+
+        school = attrs.get("school")
+
+        if school and school.id != profile.school_id:
+            raise serializers.ValidationError(
+                {
+                    "school": (
+                        "You cannot create or assign a "
+                        "student to another school."
+                    )
+                }
             )
 
         classroom = attrs.get("classroom")
