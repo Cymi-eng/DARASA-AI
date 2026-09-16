@@ -4,6 +4,8 @@ from .student import StudentSerializer
 from .classroom import ClassRoomSerializer
 from .competency import CompetencySerializer
 from .fee_payment import FeePaymentSerializer
+from .fee_ledger import FeeLedgerEntrySerializer
+
 
 __all__ = [
     "UserAccountSerializer",
@@ -13,4 +15,5 @@ __all__ = [
     "ClassRoomSerializer",
     "CompetencySerializer",
     "FeePaymentSerializer",
+    "FeeLedgerEntrySerializer",
 ]
