@@ -12,18 +12,41 @@ class FeePaymentSerializer(serializers.ModelSerializer):
             "amount",
             "mpesa_receipt_number",
             "phone_number",
+            "transaction_id",
+            "checkout_request_id",
+            "merchant_request_id",
             "status",
+            "failure_reason",
             "paid_at",
+            "updated_at",
         ]
+
         read_only_fields = [
             "id",
+            "mpesa_receipt_number",
+            "transaction_id",
+            "checkout_request_id",
+            "merchant_request_id",
+            "status",
+            "failure_reason",
             "paid_at",
+            "updated_at",
         ]
 
     def validate_amount(self, value):
         if value <= 0:
             raise serializers.ValidationError(
                 "Payment amount must be greater than zero."
+            )
+
+        return value
+
+    def validate_phone_number(self, value):
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "Phone number is required."
             )
 
         return value
@@ -39,7 +62,11 @@ class FeePaymentSerializer(serializers.ModelSerializer):
         if request.user.is_superuser:
             return attrs
 
-        profile = getattr(request.user, "profile", None)
+        profile = getattr(
+            request.user,
+            "profile",
+            None,
+        )
 
         if not profile or not profile.school_id:
             raise serializers.ValidationError(
