@@ -29,8 +29,9 @@ def mpesa_callback(request):
     """
     Receive and process an M-Pesa STK Push callback.
 
-    Successful payments are confirmed and recorded
-    in the fee ledger.
+    The callback is idempotent:
+    repeated successful callbacks for the same payment
+    cannot create duplicate payment ledger entries.
     """
 
     body = request.data
@@ -68,23 +69,6 @@ def mpesa_callback(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    try:
-        payment = FeePayment.objects.select_related(
-            "student"
-        ).get(
-            checkout_request_id=checkout_request_id
-        )
-    except FeePayment.DoesNotExist:
-        return Response(
-            {
-                "ResultCode": 1,
-                "ResultDesc": (
-                    "Payment transaction not found."
-                ),
-            },
-            status=status.HTTP_404_NOT_FOUND,
-        )
-
     callback_metadata = (
         stk_callback.get(
             "CallbackMetadata",
@@ -106,7 +90,33 @@ def mpesa_callback(request):
     )
 
     with transaction.atomic():
+        try:
+            payment = (
+                FeePayment.objects
+                .select_for_update()
+                .select_related("student")
+                .get(
+                    checkout_request_id=(
+                        checkout_request_id
+                    )
+                )
+            )
+        except FeePayment.DoesNotExist:
+            return Response(
+                {
+                    "ResultCode": 1,
+                    "ResultDesc": (
+                        "Payment transaction not found."
+                    ),
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
         if result_code == 0:
+            # -------------------------------------------------------------
+            # Successful callback
+            # -------------------------------------------------------------
+
             payment.status = "CONFIRMED"
 
             if receipt_number:
@@ -146,12 +156,20 @@ def mpesa_callback(request):
                 ]
             )
 
-            ledger_exists = FeeLedgerEntry.objects.filter(
-                payment=payment,
-                entry_type="PAYMENT",
-            ).exists()
+            # -------------------------------------------------------------
+            # Idempotent ledger creation
+            # -------------------------------------------------------------
 
-            if not ledger_exists:
+            ledger_entry = (
+                FeeLedgerEntry.objects
+                .filter(
+                    payment=payment,
+                    entry_type="PAYMENT",
+                )
+                .first()
+            )
+
+            if ledger_entry is None:
                 FeeLedgerEntry.objects.create(
                     payment=payment,
                     student=payment.student,
@@ -168,6 +186,10 @@ def mpesa_callback(request):
                 )
 
         else:
+            # -------------------------------------------------------------
+            # Failed callback
+            # -------------------------------------------------------------
+
             payment.status = "FAILED"
 
             payment.failure_reason = (
