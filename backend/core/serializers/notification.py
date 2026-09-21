@@ -25,6 +25,7 @@ class NotificationSerializer(serializers.ModelSerializer):
 
         read_only_fields = [
             "id",
+            "school",
             "status",
             "provider_message_id",
             "failure_reason",
@@ -62,6 +63,9 @@ class NotificationSerializer(serializers.ModelSerializer):
             )
 
         if request.user.is_superuser:
+            self._validate_student_school(
+                attrs
+            )
             return attrs
 
         profile = getattr(
@@ -75,24 +79,9 @@ class NotificationSerializer(serializers.ModelSerializer):
                 "Your account is not associated with a school."
             )
 
-        school = attrs.get("school")
-
-        if school and school.id != profile.school_id:
-            raise serializers.ValidationError(
-                {
-                    "school": (
-                        "Notification does not belong "
-                        "to your school."
-                    )
-                }
-            )
-
         student = attrs.get("student")
 
-        if (
-            student
-            and student.school_id != profile.school_id
-        ):
+        if student and student.school_id != profile.school_id:
             raise serializers.ValidationError(
                 {
                     "student": (
@@ -103,3 +92,35 @@ class NotificationSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+    def _validate_student_school(self, attrs):
+        """
+        Validate student/school consistency for
+        superusers as well.
+        """
+
+        request = self.context.get("request")
+
+        student = attrs.get("student")
+
+        if not student:
+            return
+
+        school = attrs.get("school")
+
+        if school and student.school_id != school.id:
+            raise serializers.ValidationError(
+                {
+                    "student": (
+                        "Student must belong to "
+                        "the notification school."
+                    )
+                }
+            )
+
+        if (
+            request
+            and request.user.is_superuser
+            and not school
+        ):
+            return
