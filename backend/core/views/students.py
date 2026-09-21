@@ -1,24 +1,15 @@
-from rest_framework import viewsets
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from ..models import Student
 from ..permissions import IsAdminOrTeacher
 from ..serializers import StudentSerializer
+from ..services.adaptive_learning import AdaptiveLearningService
 from .base import SchoolScopedViewSet
 
 
 class StudentViewSet(SchoolScopedViewSet):
-    """
-    Student management API.
-
-    Students are automatically restricted to the
-    authenticated user's school.
-
-    Supports filtering by:
-
-    - grade
-    - classroom
-    """
-
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
 
@@ -33,13 +24,11 @@ class StudentViewSet(SchoolScopedViewSet):
             "classroom",
         )
 
-        # Superusers can access students across all schools.
         if school is not None:
             queryset = queryset.filter(
                 school=school
             )
 
-        # Filter by grade.
         grade = self.request.query_params.get(
             "grade"
         )
@@ -49,7 +38,6 @@ class StudentViewSet(SchoolScopedViewSet):
                 grade=grade
             )
 
-        # Filter by classroom.
         classroom = self.request.query_params.get(
             "classroom"
         )
@@ -65,13 +53,6 @@ class StudentViewSet(SchoolScopedViewSet):
         )
 
     def perform_create(self, serializer):
-        """
-        Automatically assign a new student to the
-        authenticated user's school.
-
-        Superusers may explicitly provide a school.
-        """
-
         school = self.get_school()
 
         if school is None:
@@ -80,4 +61,53 @@ class StudentViewSet(SchoolScopedViewSet):
 
         serializer.save(
             school=school
+        )
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="adaptive-profile",
+    )
+    def adaptive_profile(self, request, pk=None):
+        """
+        Return the student's adaptive learning profile.
+        """
+
+        student = self.get_object()
+
+        service = AdaptiveLearningService(
+            student=student
+        )
+
+        profile = service.generate_profile()
+
+        return Response(
+            profile,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="recommendations",
+    )
+    def recommendations(self, request, pk=None):
+        """
+        Return targeted learning recommendations
+        for the student.
+        """
+
+        student = self.get_object()
+
+        service = AdaptiveLearningService(
+            student=student
+        )
+
+        recommendations = (
+            service.generate_recommendations()
+        )
+
+        return Response(
+            recommendations,
+            status=status.HTTP_200_OK,
         )
