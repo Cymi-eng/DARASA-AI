@@ -39,6 +39,9 @@ class FeeLedgerEntrySerializer(serializers.ModelSerializer):
             )
 
         if request.user.is_superuser:
+            self._validate_payment_relationship(
+                attrs
+            )
             return attrs
 
         profile = getattr(
@@ -54,6 +57,8 @@ class FeeLedgerEntrySerializer(serializers.ModelSerializer):
 
         student = attrs.get("student")
 
+        payment = attrs.get("payment")
+
         if student and student.school_id != profile.school_id:
             raise serializers.ValidationError(
                 {
@@ -64,9 +69,11 @@ class FeeLedgerEntrySerializer(serializers.ModelSerializer):
                 }
             )
 
-        payment = attrs.get("payment")
-
-        if payment and payment.student.school_id != profile.school_id:
+        if (
+            payment
+            and payment.student.school_id
+            != profile.school_id
+        ):
             raise serializers.ValidationError(
                 {
                     "payment": (
@@ -76,4 +83,32 @@ class FeeLedgerEntrySerializer(serializers.ModelSerializer):
                 }
             )
 
+        self._validate_payment_relationship(
+            attrs
+        )
+
         return attrs
+
+    def _validate_payment_relationship(self, attrs):
+        """
+        Ensure a linked payment belongs to the
+        same student as the ledger entry.
+        """
+
+        student = attrs.get("student")
+
+        payment = attrs.get("payment")
+
+        if not student or not payment:
+            return
+
+        if payment.student_id != student.id:
+            raise serializers.ValidationError(
+                {
+                    "payment": (
+                        "Payment must belong to "
+                        "the same student as the "
+                        "ledger entry."
+                    )
+                }
+            )
