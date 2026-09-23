@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "./context/AuthContext.jsx";
+import AppShell from "./components/AppShell.jsx";
+import Dashboard from "./pages/Dashboard.jsx";
 import Login from "./pages/Login.jsx";
 
 function ProtectedRoute({ children }) {
@@ -10,7 +12,7 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
-  return children;
+  return <AppShell>{children}</AppShell>;
 }
 
 function App() {
@@ -33,7 +35,7 @@ function App() {
         path="/dashboard"
         element={
           <ProtectedRoute>
-            <div>Dashboard coming next.</div>
+            <Dashboard />
           </ProtectedRoute>
         }
       />
