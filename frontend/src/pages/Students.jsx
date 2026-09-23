@@ -95,6 +95,7 @@ function Students() {
     return students.filter((student) => {
       const searchableText = [
         student.first_name,
+        student.middle_name,
         student.last_name,
         student.admission_number,
         student.grade,
@@ -142,26 +143,26 @@ function Students() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
+      {/* Page heading */}
       <section>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-600">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#0B5D43]">
               Learner Management
             </p>
 
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#17382E] sm:text-4xl">
               Students
             </h1>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#65736E] sm:text-base">
               Manage learner records, grades and classroom assignments.
             </p>
           </div>
 
           <button
             type="button"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#084936] focus:outline-none focus:ring-4 focus:ring-[#DCEDE5]"
           >
             <Plus size={18} />
             Add Student
@@ -169,38 +170,38 @@ function Students() {
         </div>
       </section>
 
-      {/* Summary */}
+      {/* Statistics */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-[#E1E4DE] bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
               <Users size={21} />
             </div>
 
             <div>
-              <p className="text-sm font-medium text-slate-500">
+              <p className="text-sm font-medium text-[#65736E]">
                 Total students
               </p>
 
-              <p className="mt-1 text-2xl font-bold text-slate-900">
+              <p className="mt-1 text-2xl font-bold text-[#17382E]">
                 {loading ? "—" : students.length.toLocaleString()}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-[#E1E4DE] bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F0F5E9] text-[#657A28]">
               <GraduationCap size={21} />
             </div>
 
             <div>
-              <p className="text-sm font-medium text-slate-500">
+              <p className="text-sm font-medium text-[#65736E]">
                 Showing
               </p>
 
-              <p className="mt-1 text-2xl font-bold text-slate-900">
+              <p className="mt-1 text-2xl font-bold text-[#17382E]">
                 {loading
                   ? "—"
                   : filteredStudents.length.toLocaleString()}
@@ -209,18 +210,18 @@ function Students() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:col-span-2 lg:col-span-1">
+        <div className="rounded-2xl border border-[#E1E4DE] bg-white p-5 shadow-sm sm:col-span-2 lg:col-span-1">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF9E7] text-[#94720D]">
               <Filter size={21} />
             </div>
 
             <div>
-              <p className="text-sm font-medium text-slate-500">
+              <p className="text-sm font-medium text-[#65736E]">
                 Current grade filter
               </p>
 
-              <p className="mt-1 text-lg font-bold text-slate-900">
+              <p className="mt-1 text-lg font-bold text-[#17382E]">
                 {getGradeLabel(grade)}
               </p>
             </div>
@@ -229,12 +230,12 @@ function Students() {
       </section>
 
       {/* Filters */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <section className="rounded-2xl border border-[#E1E4DE] bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row">
           <div className="relative flex-1">
             <Search
               size={19}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8A9691]"
             />
 
             <input
@@ -242,14 +243,14 @@ function Students() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search by name, admission number or classroom..."
-              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              className="h-11 w-full rounded-xl border border-[#DDE2DD] bg-[#F8F7F2] pl-11 pr-4 text-sm text-[#17382E] outline-none transition placeholder:text-[#9AA49F] focus:border-[#0B5D43] focus:bg-white focus:ring-4 focus:ring-[#EAF3EE]"
             />
           </div>
 
           <select
             value={grade}
             onChange={(event) => setGrade(event.target.value)}
-            className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-50 lg:w-48"
+            className="h-11 rounded-xl border border-[#DDE2DD] bg-[#F8F7F2] px-4 text-sm font-medium text-[#405650] outline-none transition focus:border-[#0B5D43] focus:bg-white focus:ring-4 focus:ring-[#EAF3EE] lg:w-48"
           >
             {gradeOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -282,23 +283,26 @@ function Students() {
 
       {/* Loading */}
       {loading && (
-        <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-3 text-sm font-medium text-slate-500">
-            <Loader2 className="animate-spin" size={20} />
+        <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-[#E1E4DE] bg-white shadow-sm">
+          <div className="flex items-center gap-3 text-sm font-medium text-[#65736E]">
+            <Loader2
+              className="animate-spin text-[#0B5D43]"
+              size={20}
+            />
             Loading student records...
           </div>
         </div>
       )}
 
-      {/* Student table */}
+      {/* Directory */}
       {!loading && !error && (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
-            <h2 className="text-base font-bold text-slate-900">
+        <section className="overflow-hidden rounded-2xl border border-[#E1E4DE] bg-white shadow-sm">
+          <div className="border-b border-[#E9E8E1] px-5 py-4 sm:px-6">
+            <h2 className="text-base font-bold text-[#17382E]">
               Student Directory
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-[#65736E]">
               {filteredStudents.length === 0
                 ? "No students match the current filters."
                 : `${filteredStudents.length} student${
@@ -309,17 +313,17 @@ function Students() {
 
           {filteredStudents.length === 0 ? (
             <div className="flex min-h-[280px] flex-col items-center justify-center px-6 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F1F3EE] text-[#8A9691]">
                 <GraduationCap size={26} />
               </div>
 
-              <h3 className="mt-5 text-base font-bold text-slate-900">
+              <h3 className="mt-5 text-base font-bold text-[#17382E]">
                 No students found
               </h3>
 
-              <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-                There are no learner records matching your current search
-                or grade filter.
+              <p className="mt-2 max-w-md text-sm leading-6 text-[#65736E]">
+                There are no learner records matching your current
+                search or grade filter.
               </p>
             </div>
           ) : (
@@ -328,73 +332,73 @@ function Students() {
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[760px]">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/70 text-left">
-                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <tr className="border-b border-[#E9E8E1] bg-[#F8F7F2] text-left">
+                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-[#8A9691]">
                         Student
                       </th>
 
-                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-[#8A9691]">
                         Admission No.
                       </th>
 
-                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-[#8A9691]">
                         Grade
                       </th>
 
-                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-[#8A9691]">
                         Classroom
                       </th>
 
-                      <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#8A9691]">
                         Action
                       </th>
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[#EEF0EB]">
                     {filteredStudents.map((student) => (
                       <tr
                         key={student.id}
-                        className="transition hover:bg-slate-50/70"
+                        className="transition hover:bg-[#F8FAF7]"
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-700">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43]">
                               {getStudentName(student)
                                 .charAt(0)
                                 .toUpperCase()}
                             </div>
 
                             <div>
-                              <p className="text-sm font-semibold text-slate-900">
+                              <p className="text-sm font-semibold text-[#17382E]">
                                 {getStudentName(student)}
                               </p>
 
-                              <p className="text-xs text-slate-400">
+                              <p className="text-xs text-[#9AA49F]">
                                 Student #{student.id}
                               </p>
                             </div>
                           </div>
                         </td>
 
-                        <td className="px-6 py-4 text-sm font-medium text-slate-700">
+                        <td className="px-6 py-4 text-sm font-medium text-[#405650]">
                           {student.admission_number || "—"}
                         </td>
 
                         <td className="px-6 py-4">
-                          <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          <span className="inline-flex rounded-lg bg-[#F1F3EE] px-2.5 py-1 text-xs font-semibold text-[#405650]">
                             {getGradeLabel(student.grade)}
                           </span>
                         </td>
 
-                        <td className="px-6 py-4 text-sm text-slate-600">
+                        <td className="px-6 py-4 text-sm text-[#65736E]">
                           {getClassroomName(student)}
                         </td>
 
                         <td className="px-6 py-4 text-right">
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 transition hover:text-blue-800"
+                            className="inline-flex items-center gap-1 text-sm font-semibold text-[#0B5D43] transition hover:text-[#084936]"
                           >
                             View
                             <ChevronRight size={16} />
@@ -407,29 +411,30 @@ function Students() {
               </div>
 
               {/* Mobile cards */}
-              <div className="divide-y divide-slate-100 md:hidden">
+              <div className="divide-y divide-[#EEF0EB] md:hidden">
                 {filteredStudents.map((student) => (
                   <div key={student.id} className="p-5">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-700">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43]">
                         {getStudentName(student)
                           .charAt(0)
                           .toUpperCase()}
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-slate-900">
+                        <p className="truncate text-sm font-bold text-[#17382E]">
                           {getStudentName(student)}
                         </p>
 
-                        <p className="mt-1 text-xs text-slate-400">
-                          {student.admission_number || "No admission number"}
+                        <p className="mt-1 text-xs text-[#9AA49F]">
+                          {student.admission_number ||
+                            "No admission number"}
                         </p>
                       </div>
 
                       <button
                         type="button"
-                        className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+                        className="rounded-lg p-2 text-[#8A9691] transition hover:bg-[#F1F3EE] hover:text-[#0B5D43]"
                         aria-label={`View ${getStudentName(student)}`}
                       >
                         <ChevronRight size={18} />
@@ -437,22 +442,22 @@ function Students() {
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3">
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      <div className="rounded-xl bg-[#F8F7F2] p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8A9691]">
                           Grade
                         </p>
 
-                        <p className="mt-1 text-sm font-semibold text-slate-700">
+                        <p className="mt-1 text-sm font-semibold text-[#405650]">
                           {getGradeLabel(student.grade)}
                         </p>
                       </div>
 
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      <div className="rounded-xl bg-[#F8F7F2] p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8A9691]">
                           Classroom
                         </p>
 
-                        <p className="mt-1 truncate text-sm font-semibold text-slate-700">
+                        <p className="mt-1 truncate text-sm font-semibold text-[#405650]">
                           {getClassroomName(student)}
                         </p>
                       </div>
