@@ -4,6 +4,7 @@ import { useAuth } from "./context/AuthContext.jsx";
 import AppShell from "./components/AppShell.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Login from "./pages/Login.jsx";
+import Students from "./pages/Students.jsx";
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -39,6 +40,14 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+  path="/students"
+  element={
+    <ProtectedRoute>
+      <Students />
+    </ProtectedRoute>
+  }
+/>
 
       <Route
         path="*"
@@ -50,6 +59,8 @@ function App() {
         }
       />
     </Routes>
+
+    
   );
 }
 
