@@ -1,39 +1,54 @@
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
+  ArrowRight,
+  BarChart3,
   BookOpenCheck,
+  CreditCard,
   GraduationCap,
+  Loader2,
   School,
   Users,
 } from "lucide-react";
 
 import api from "../api";
 
-function StatCard({ icon: Icon, label, value, description }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-
-          <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
-            {value}
-          </p>
-
-          <p className="mt-2 text-sm text-slate-500">{description}</p>
-        </div>
-
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-          <Icon size={22} />
-        </div>
-      </div>
-    </div>
-  );
-}
+const statCards = [
+  {
+    key: "students",
+    label: "Students",
+    icon: GraduationCap,
+    description: "Enrolled learners",
+  },
+  {
+    key: "teachers",
+    label: "Teachers",
+    icon: Users,
+    description: "Teaching staff",
+  },
+  {
+    key: "classrooms",
+    label: "Classrooms",
+    icon: School,
+    description: "Active learning spaces",
+  },
+  {
+    key: "assessments",
+    label: "CBC Assessments",
+    icon: BookOpenCheck,
+    description: "Competency records",
+  },
+  {
+    key: "payments",
+    label: "Fee Payments",
+    icon: CreditCard,
+    description: "Recorded transactions",
+  },
+];
 
 function Dashboard() {
   const [dashboard, setDashboard] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -41,6 +56,9 @@ function Dashboard() {
 
     async function loadDashboard() {
       try {
+        setLoading(true);
+        setError("");
+
         const response = await api.get("/dashboard/");
 
         if (isMounted) {
@@ -55,7 +73,7 @@ function Dashboard() {
         }
       } finally {
         if (isMounted) {
-          setIsLoading(false);
+          setLoading(false);
         }
       }
     }
@@ -67,151 +85,271 @@ function Dashboard() {
     };
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
-
-          <p className="mt-4 text-sm font-medium text-slate-500">
-            Loading school data...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-        <div className="flex gap-3">
-          <AlertCircle className="mt-0.5 shrink-0 text-red-600" size={22} />
-
-          <div>
-            <h2 className="font-semibold text-red-900">
-              Dashboard unavailable
-            </h2>
-
-            <p className="mt-1 text-sm text-red-700">{error}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const totalRecords = dashboard
+    ? Object.values(dashboard).reduce(
+        (total, value) =>
+          typeof value === "number" ? total + value : total,
+        0
+      )
+    : 0;
 
   return (
     <div className="space-y-8">
+      {/* Page heading */}
       <section>
-        <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">
-          School overview
-        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-600">
+              School Overview
+            </p>
 
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-          Dashboard
-        </h1>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              Dashboard
+            </h1>
 
-        <p className="mt-2 max-w-2xl text-slate-500">
-          A real-time overview of learners, teaching capacity, classroom
-          activity, competency assessment, and fee transactions.
-        </p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+              Monitor learners, teaching activity, CBC assessments and
+              school operations from one place.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
+              Total records
+            </p>
+
+            <p className="mt-1 text-2xl font-bold text-slate-900">
+              {loading ? "—" : totalRecords.toLocaleString()}
+            </p>
+          </div>
+        </div>
       </section>
 
-      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard
-          icon={GraduationCap}
-          label="Students"
-          value={dashboard?.students ?? 0}
-          description="Registered learners"
-        />
+      {/* Loading state */}
+      {loading && (
+        <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 text-sm font-medium text-slate-500">
+            <Loader2 className="animate-spin" size={20} />
+            Loading school data...
+          </div>
+        </div>
+      )}
 
-        <StatCard
-          icon={Users}
-          label="Teachers"
-          value={dashboard?.teachers ?? 0}
-          description="Teaching staff"
-        />
+      {/* Error state */}
+      {!loading && error && (
+        <div
+          role="alert"
+          className="flex items-start gap-4 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700"
+        >
+          <AlertCircle className="mt-0.5 shrink-0" size={21} />
 
-        <StatCard
-          icon={School}
-          label="Classrooms"
-          value={dashboard?.classrooms ?? 0}
-          description="Active learning groups"
-        />
+          <div>
+            <p className="font-semibold">
+              Dashboard data could not be loaded
+            </p>
 
-        <StatCard
-          icon={BookOpenCheck}
-          label="Assessments"
-          value={dashboard?.assessments ?? 0}
-          description="Competency records"
-        />
+            <p className="mt-1 text-sm leading-6 text-red-600">
+              {error}
+            </p>
+          </div>
+        </div>
+      )}
 
-        <StatCard
-          icon={AlertCircle}
-          label="Payments"
-          value={dashboard?.payments ?? 0}
-          description="Fee transactions"
-        />
-      </section>
+      {/* Statistics */}
+      {!loading && !error && dashboard && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {statCards.map((card) => {
+              const Icon = card.icon;
+              const value = dashboard[card.key] ?? 0;
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                CBC Learning Environment
+              return (
+                <div
+                  key={card.key}
+                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <Icon size={21} />
+                    </div>
+
+                    <ArrowRight
+                      size={17}
+                      className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-500"
+                    />
+                  </div>
+
+                  <p className="mt-5 text-sm font-medium text-slate-500">
+                    {card.label}
+                  </p>
+
+                  <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+                    {Number(value).toLocaleString()}
+                  </p>
+
+                  <p className="mt-2 text-xs text-slate-400">
+                    {card.description}
+                  </p>
+                </div>
+              );
+            })}
+          </section>
+
+          {/* Main overview */}
+          <section className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Education Management Overview
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Your current school data at a glance.
+                  </p>
+                </div>
+
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <BarChart3 size={20} />
+                </div>
+              </div>
+
+              <div className="mt-8 grid gap-5 sm:grid-cols-2">
+                <div className="rounded-xl bg-slate-50 p-5">
+                  <p className="text-sm font-medium text-slate-500">
+                    Learner population
+                  </p>
+
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
+                    {Number(dashboard.students ?? 0).toLocaleString()}
+                  </p>
+
+                  <p className="mt-2 text-xs text-slate-400">
+                    Students currently recorded in Darasa-AI
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-5">
+                  <p className="text-sm font-medium text-slate-500">
+                    Assessment activity
+                  </p>
+
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
+                    {Number(dashboard.assessments ?? 0).toLocaleString()}
+                  </p>
+
+                  <p className="mt-2 text-xs text-slate-400">
+                    Competency assessment records
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <BookOpenCheck size={21} />
+              </div>
+
+              <h2 className="mt-5 text-lg font-bold text-slate-900">
+                CBC Intelligence
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Darasa-AI turns continuous competency assessments into
+                actionable learning insights for teachers and school
+                administrators.
+              </p>
+
+              <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+                  Current assessments
+                </p>
+
+                <p className="mt-1 text-2xl font-bold text-blue-900">
+                  {Number(dashboard.assessments ?? 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Quick actions */}
+          <section>
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-slate-900">
+                Quick Access
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Competency-based learning and continuous assessment
+                Common school administration areas.
               </p>
             </div>
 
-            <BookOpenCheck className="text-blue-600" size={24} />
-          </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  label: "Students",
+                  description: "Manage learner records",
+                  icon: GraduationCap,
+                  path: "/students",
+                },
+                {
+                  label: "Classrooms",
+                  description: "Manage classes and grades",
+                  icon: School,
+                  path: "/classrooms",
+                },
+                {
+                  label: "CBC Assessment",
+                  description: "Track competency progress",
+                  icon: BookOpenCheck,
+                  path: "/competencies",
+                },
+                {
+                  label: "Finance",
+                  description: "Manage school payments",
+                  icon: CreditCard,
+                  path: "/finance",
+                },
+              ].map((item) => {
+                const Icon = item.icon;
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-xl bg-slate-50 p-5">
-              <p className="text-sm text-slate-500">Learner tracking</p>
-              <p className="mt-2 font-semibold text-slate-900">
-                Individualized
-              </p>
+                return (
+                  <button
+                    key={item.path}
+                    type="button"
+                    onClick={() => {
+                      window.history.pushState({}, "", item.path);
+                      window.dispatchEvent(
+                        new PopStateEvent("popstate")
+                      );
+                    }}
+                    className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition group-hover:bg-blue-50 group-hover:text-blue-600">
+                        <Icon size={19} />
+                      </div>
+
+                      <ArrowRight
+                        size={17}
+                        className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-500"
+                      />
+                    </div>
+
+                    <p className="mt-4 text-sm font-bold text-slate-900">
+                      {item.label}
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      {item.description}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
-
-            <div className="rounded-xl bg-slate-50 p-5">
-              <p className="text-sm text-slate-500">Assessment model</p>
-              <p className="mt-2 font-semibold text-slate-900">
-                Competency-based
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-slate-50 p-5">
-              <p className="text-sm text-slate-500">Learning support</p>
-              <p className="mt-2 font-semibold text-slate-900">
-                Adaptive
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Platform status
-          </h2>
-
-          <div className="mt-6 flex items-center gap-3">
-            <span className="h-3 w-3 rounded-full bg-emerald-500" />
-
-            <span className="font-medium text-slate-900">
-              Backend connected
-            </span>
-          </div>
-
-          <p className="mt-4 text-sm leading-6 text-slate-500">
-            Darasa-AI is connected to the production API and ready to
-            synchronize school management and learning data.
-          </p>
-        </div>
-      </section>
+          </section>
+        </>
+      )}
     </div>
   );
 }
