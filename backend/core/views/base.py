@@ -4,24 +4,12 @@ from ..permissions import HasSchoolAccess
 
 
 class SchoolScopedViewSet(viewsets.ModelViewSet):
-    """
-    Base ViewSet for resources belonging to a school.
-
-    Superusers have global access.
-    Normal users are restricted to their school.
-    """
-
     permission_classes = [HasSchoolAccess]
 
     def get_school(self):
-        """
-        Return the authenticated user's school.
+        profile = getattr(self.request.user, "profile", None)
 
-        Returns None for superusers because they
-        have global access.
-        """
+        if profile and profile.school_id:
+            return profile.school
 
-        if self.request.user.is_superuser:
-            return None
-
-        return self.request.user.profile.school
+        return None
