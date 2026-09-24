@@ -7,6 +7,7 @@ import Classrooms from "./pages/Classrooms.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Login from "./pages/Login.jsx";
 import Students from "./pages/Students.jsx";
+import Teachers from "./pages/Teachers.jsx";
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -57,6 +58,15 @@ function App() {
         element={
           <ProtectedRoute>
             <Classrooms />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/teachers"
+        element={
+          <ProtectedRoute>
+            <Teachers />
           </ProtectedRoute>
         }
       />
