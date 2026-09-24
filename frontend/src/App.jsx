@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "./context/AuthContext.jsx";
 import AppShell from "./components/AppShell.jsx";
+
+import Classrooms from "./pages/Classrooms.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Login from "./pages/Login.jsx";
 import Students from "./pages/Students.jsx";
@@ -40,14 +42,24 @@ function App() {
           </ProtectedRoute>
         }
       />
+
       <Route
-  path="/students"
-  element={
-    <ProtectedRoute>
-      <Students />
-    </ProtectedRoute>
-  }
-/>
+        path="/students"
+        element={
+          <ProtectedRoute>
+            <Students />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/classrooms"
+        element={
+          <ProtectedRoute>
+            <Classrooms />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="*"
@@ -59,8 +71,6 @@ function App() {
         }
       />
     </Routes>
-
-    
   );
 }
 
