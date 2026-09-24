@@ -3,6 +3,8 @@ import os
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
+from core.models import School, UserProfile
+
 
 class Command(BaseCommand):
     help = "Create or update the Darasa-AI production administrator."
@@ -10,6 +12,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         username = os.getenv("DJANGO_ADMIN_USERNAME")
         password = os.getenv("DJANGO_ADMIN_PASSWORD")
+        school_name = os.getenv(
+            "DJANGO_ADMIN_SCHOOL_NAME",
+            "Darasa-AI School",
+        )
 
         if not username:
             raise CommandError(
@@ -27,6 +33,10 @@ class Command(BaseCommand):
             )
 
         User = get_user_model()
+
+        school, _ = School.objects.get_or_create(
+            name=school_name,
+        )
 
         user, created = User.objects.get_or_create(
             username=username,
@@ -50,15 +60,30 @@ class Command(BaseCommand):
             ]
         )
 
+        profile, _ = UserProfile.objects.get_or_create(
+            user=user,
+        )
+
+        profile.school = school
+        profile.role = UserProfile.ROLE_ADMIN
+        profile.save(
+            update_fields=[
+                "school",
+                "role",
+            ]
+        )
+
         if created:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Production administrator '{username}' created."
+                    f"Production administrator '{username}' created "
+                    f"and assigned to '{school.name}'."
                 )
             )
         else:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Production administrator '{username}' updated."
+                    f"Production administrator '{username}' updated "
+                    f"and assigned to '{school.name}'."
                 )
             )
