@@ -2,6 +2,9 @@ import axios from "axios";
 
 const API_BASE_URL = "https://darasa-ai.onrender.com/api";
 
+const ACCESS_TOKEN_KEY = "darasa_access_token";
+const REFRESH_TOKEN_KEY = "darasa_refresh_token";
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -9,9 +12,57 @@ const api = axios.create({
   },
 });
 
+const refreshClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+let refreshPromise = null;
+
+function clearAuthentication() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+
+  if (!refreshToken) {
+    throw new Error("No refresh token available.");
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = refreshClient
+      .post("/auth/token/refresh/", {
+        refresh: refreshToken,
+      })
+      .then((response) => {
+        const newAccessToken = response.data.access;
+
+        if (!newAccessToken) {
+          throw new Error("No access token returned.");
+        }
+
+        localStorage.setItem(
+          ACCESS_TOKEN_KEY,
+          newAccessToken
+        );
+
+        return newAccessToken;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
 api.interceptors.request.use(
   (config) => {
-    const accessToken = localStorage.getItem("darasa_access_token");
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
 
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
@@ -24,13 +75,29 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem("darasa_access_token");
-      localStorage.removeItem("darasa_refresh_token");
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (
+      error.response?.status !== 401 ||
+      originalRequest?._retry
+    ) {
+      return Promise.reject(error);
     }
 
-    return Promise.reject(error);
+    originalRequest._retry = true;
+
+    try {
+      const newAccessToken = await refreshAccessToken();
+
+      originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+      return api(originalRequest);
+    } catch (refreshError) {
+      clearAuthentication();
+
+      return Promise.reject(refreshError);
+    }
   }
 );
 
