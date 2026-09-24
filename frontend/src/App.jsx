@@ -4,6 +4,7 @@ import { useAuth } from "./context/AuthContext.jsx";
 import AppShell from "./components/AppShell.jsx";
 
 import Classrooms from "./pages/Classrooms.jsx";
+import Competencies from "./pages/Competencies.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Login from "./pages/Login.jsx";
 import Students from "./pages/Students.jsx";
@@ -67,6 +68,15 @@ function App() {
         element={
           <ProtectedRoute>
             <Teachers />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/competencies"
+        element={
+          <ProtectedRoute>
+            <Competencies />
           </ProtectedRoute>
         }
       />
