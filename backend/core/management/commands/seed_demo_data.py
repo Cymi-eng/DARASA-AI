@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from core.models import (
@@ -32,13 +32,26 @@ class Command(BaseCommand):
             )
         )
 
-        school, _ = School.objects.get_or_create(
-            name="Darasa-AI Demonstration School",
-            defaults={
-                "location": "Nairobi, Kenya",
-                "phone": "0700000000",
-            },
-        )
+        admin_username = "simi"
+
+        try:
+            admin_user = User.objects.select_related(
+                "profile",
+                "profile__school",
+            ).get(username=admin_username)
+        except User.DoesNotExist:
+            raise CommandError(
+                f"Administrator '{admin_username}' does not exist."
+            )
+
+        profile = getattr(admin_user, "profile", None)
+
+        if not profile or not profile.school_id:
+            raise CommandError(
+                f"Administrator '{admin_username}' is not associated with a school."
+            )
+
+        school = profile.school
 
         classrooms_data = [
             ("PP1 Sunshine", "PP1"),
@@ -64,6 +77,9 @@ class Command(BaseCommand):
                     "grade": grade,
                 },
             )
+
+            classroom.grade = grade
+            classroom.save(update_fields=["grade"])
 
             classrooms[name] = classroom
 
@@ -223,25 +239,30 @@ class Command(BaseCommand):
             ("SST", "Our Community"),
         ]
 
-        mastery_levels = ["EE", "ME", "ME", "AE", "BE"]
+        mastery_levels = [
+            "EE",
+            "ME",
+            "ME",
+            "AE",
+            "BE",
+        ]
 
         students = []
+
+        grades = [
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+        ]
 
         for index in range(60):
             first_name = first_names[index % len(first_names)]
             last_name = last_names[index % len(last_names)]
 
             grade_index = index % 6
-
-            grades = [
-                "G1",
-                "G2",
-                "G3",
-                "G4",
-                "G5",
-                "G6",
-            ]
-
             grade = grades[grade_index]
 
             grade_classrooms = [
@@ -307,7 +328,8 @@ class Command(BaseCommand):
                 )
 
                 mastery_level = mastery_levels[
-                    (index + area_index) % len(mastery_levels)
+                    (index + area_index)
+                    % len(mastery_levels)
                 ]
 
                 Competency.objects.update_or_create(
@@ -328,7 +350,9 @@ class Command(BaseCommand):
                     },
                 )
 
-        for index, student in enumerate(students[:30]):
+        for index, student in enumerate(
+            students[:30]
+        ):
             amount = Decimal(
                 5000 + ((index % 5) * 2500)
             )
@@ -367,7 +391,9 @@ class Command(BaseCommand):
                 },
             )
 
-        for index, student in enumerate(students[:15]):
+        for index, student in enumerate(
+            students[:15]
+        ):
             Notification.objects.get_or_create(
                 school=school,
                 student=student,
