@@ -3,7 +3,6 @@ import {
   AlertCircle,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   GraduationCap,
   Loader2,
   Plus,
@@ -37,6 +36,22 @@ function getStudentName(student) {
   return [student.first_name, student.last_name]
     .filter(Boolean)
     .join(" ");
+}
+
+function getClassroomName(classroom, classrooms) {
+  if (!classroom) {
+    return "Not assigned";
+  }
+
+  if (typeof classroom === "object") {
+    return classroom.name || "Not assigned";
+  }
+
+  return (
+    classrooms.find(
+      (item) => String(item.id) === String(classroom)
+    )?.name || "Not assigned"
+  );
 }
 
 function extractErrorMessage(error, fallback) {
@@ -432,9 +447,14 @@ function Students() {
             <span className="text-2xl font-bold text-[#12382D]">
               {
                 students.filter((student) =>
-                  ["G1", "G2", "G3", "G4", "G5", "G6"].includes(
-                    student.grade
-                  )
+                  [
+                    "G1",
+                    "G2",
+                    "G3",
+                    "G4",
+                    "G5",
+                    "G6",
+                  ].includes(student.grade)
                 ).length
               }
             </span>
@@ -504,7 +524,8 @@ function Students() {
                 {filteredStudents.length} student
                 {filteredStudents.length === 1
                   ? ""
-                  : "s"} displayed
+                  : "s"}{" "}
+                displayed
               </p>
             </div>
 
@@ -624,9 +645,10 @@ function Students() {
                       </td>
 
                       <td className="px-6 py-4 text-sm text-[#52645D]">
-                        {student.classroom?.name ||
-                          student.classroom_name ||
-                          "Not assigned"}
+                        {getClassroomName(
+                          student.classroom,
+                          classrooms
+                        )}
                       </td>
 
                       <td className="px-6 py-4">
@@ -686,9 +708,10 @@ function Students() {
                       </p>
 
                       <p className="mt-1 text-sm font-medium text-[#405650]">
-                        {student.classroom?.name ||
-                          student.classroom_name ||
-                          "Not assigned"}
+                        {getClassroomName(
+                          student.classroom,
+                          classrooms
+                        )}
                       </p>
                     </div>
 
