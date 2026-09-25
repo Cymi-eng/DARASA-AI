@@ -1,4 +1,6 @@
 from django.contrib.auth import get_user_model
+from django.db import transaction
+
 from rest_framework import serializers
 
 from ..models import School, UserProfile, Teacher, ClassRoom
@@ -74,17 +76,29 @@ class UserAccountSerializer(serializers.ModelSerializer):
 
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         profile_data = validated_data.pop("profile", {})
 
         password = validated_data.pop("password", None)
-
-        role = profile_data.pop(
+        role = validated_data.pop(
             "role",
             UserProfile.ROLE_TEACHER,
         )
 
         school = profile_data.get("school")
+
+        request = self.context.get("request")
+
+        if school is None and request:
+            request_profile = getattr(
+                request.user,
+                "profile",
+                None,
+            )
+
+            if request_profile and request_profile.school_id:
+                school = request_profile.school
 
         if not password:
             raise serializers.ValidationError(
@@ -107,6 +121,16 @@ class UserAccountSerializer(serializers.ModelSerializer):
         )
 
         if role == UserProfile.ROLE_TEACHER:
+            if school is None:
+                raise serializers.ValidationError(
+                    {
+                        "school": (
+                            "A school is required when "
+                            "creating a teacher."
+                        )
+                    }
+                )
+
             Teacher.objects.create(
                 user=user,
                 school=school,
@@ -114,12 +138,17 @@ class UserAccountSerializer(serializers.ModelSerializer):
 
         return user
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         profile_data = validated_data.pop("profile", {})
 
         password = validated_data.pop("password", None)
 
-        role = profile_data.get("role")
+        role = validated_data.pop(
+            "role",
+            None,
+        )
+
         school = profile_data.get("school")
 
         for attr, value in validated_data.items():
@@ -149,7 +178,9 @@ class UserAccountSerializer(serializers.ModelSerializer):
             )
 
         elif role and role != UserProfile.ROLE_TEACHER:
-            Teacher.objects.filter(user=instance).delete()
+            Teacher.objects.filter(
+                user=instance
+            ).delete()
 
         return instance
 
@@ -178,7 +209,10 @@ class TeacherSerializer(serializers.ModelSerializer):
             "classrooms",
             "phone",
         ]
-        read_only_fields = ["id", "school"]
+        read_only_fields = [
+            "id",
+            "school",
+        ]
 
     def validate(self, attrs):
         request = self.context.get("request")
@@ -197,7 +231,11 @@ class TeacherSerializer(serializers.ModelSerializer):
         user = attrs.get("user")
 
         if school and user:
-            user_profile = getattr(user, "profile", None)
+            user_profile = getattr(
+                user,
+                "profile",
+                None,
+            )
 
             if (
                 not user_profile
