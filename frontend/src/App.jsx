@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./context/AuthContext.jsx";
 import AppShell from "./components/AppShell.jsx";
 
+import Analytics from "./pages/Analytics.jsx";
 import Classrooms from "./pages/Classrooms.jsx";
 import Competencies from "./pages/Competencies.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
@@ -77,6 +78,15 @@ function App() {
         element={
           <ProtectedRoute>
             <Competencies />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Analytics />
           </ProtectedRoute>
         }
       />
