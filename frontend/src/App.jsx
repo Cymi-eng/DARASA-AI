@@ -7,6 +7,7 @@ import Analytics from "./pages/Analytics.jsx";
 import Classrooms from "./pages/Classrooms.jsx";
 import Competencies from "./pages/Competencies.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import Finance from "./pages/Finance.jsx";
 import Login from "./pages/Login.jsx";
 import Students from "./pages/Students.jsx";
 import Teachers from "./pages/Teachers.jsx";
@@ -87,6 +88,15 @@ function App() {
         element={
           <ProtectedRoute>
             <Analytics />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/finance"
+        element={
+          <ProtectedRoute>
+            <Finance />
           </ProtectedRoute>
         }
       />
