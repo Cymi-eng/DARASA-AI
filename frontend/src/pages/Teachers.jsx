@@ -31,10 +31,26 @@ function getResults(data) {
 }
 
 function getUserName(teacher) {
+  if (teacher?.user_first_name || teacher?.user_last_name) {
+    const fullName = `${teacher.user_first_name ?? ""} ${
+      teacher.user_last_name ?? ""
+    }`.trim();
+
+    if (fullName) {
+      return fullName;
+    }
+  }
+
+  if (teacher?.username) {
+    return teacher.username;
+  }
+
   const user = teacher?.user;
 
   if (typeof user === "object" && user) {
-    const fullName = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
+    const fullName = `${user.first_name ?? ""} ${
+      user.last_name ?? ""
+    }`.trim();
 
     return fullName || user.username || `Teacher #${teacher.id}`;
   }
@@ -43,6 +59,10 @@ function getUserName(teacher) {
 }
 
 function getUsername(teacher) {
+  if (teacher?.username) {
+    return teacher.username;
+  }
+
   if (typeof teacher?.user === "object" && teacher.user) {
     return teacher.user.username || "";
   }
@@ -59,6 +79,14 @@ function getTeacherInitials(teacher) {
   }
 
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function getTeacherClassrooms(teacher, classrooms) {
+  const assignedIds = teacher?.classrooms ?? [];
+
+  return classrooms.filter((classroom) =>
+    assignedIds.includes(classroom.id)
+  );
 }
 
 function getErrorMessage(error, fallback) {
@@ -153,13 +181,27 @@ function Teachers() {
       const username = getUsername(teacher).toLowerCase();
       const phone = String(teacher.phone ?? "").toLowerCase();
 
+      const teacherClassrooms = getTeacherClassrooms(
+        teacher,
+        classrooms
+      );
+
+      const classroomText = teacherClassrooms
+        .map(
+          (classroom) =>
+            `${classroom.name} ${classroom.grade}`
+        )
+        .join(" ")
+        .toLowerCase();
+
       return (
         name.includes(query) ||
         username.includes(query) ||
-        phone.includes(query)
+        phone.includes(query) ||
+        classroomText.includes(query)
       );
     });
-  }, [teachers, search]);
+  }, [teachers, classrooms, search]);
 
   function updateField(field, value) {
     setForm((current) => ({
@@ -247,7 +289,17 @@ function Teachers() {
         classrooms: form.classrooms,
       });
 
-      setTeachers(updatedTeachers);
+      /*
+       * Fetch the teachers again after the PATCH so the directory
+       * immediately contains the latest phone and classroom assignments.
+       */
+      const refreshedTeachersResponse = await api.get("/teachers/");
+      const refreshedTeachers = getResults(
+        refreshedTeachersResponse.data
+      );
+
+      setTeachers(refreshedTeachers);
+
       setSuccess("Teacher account created successfully.");
       setShowModal(false);
       setForm(EMPTY_FORM);
@@ -269,6 +321,10 @@ function Teachers() {
     return total + (teacher.classrooms?.length ?? 0);
   }, 0);
 
+  const teacherAccountCount = teachers.filter(
+    (teacher) => getUsername(teacher)
+  ).length;
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -282,8 +338,8 @@ function Teachers() {
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#70807A]">
-            Manage teaching staff, classroom assignments and teacher accounts
-            across your school.
+            Manage teaching staff, classroom assignments and teacher
+            accounts across your school.
           </p>
         </div>
 
@@ -358,9 +414,7 @@ function Teachers() {
             </div>
 
             <span className="text-2xl font-bold text-[#17382E]">
-              {teachers.filter(
-                (teacher) => getUsername(teacher)
-              ).length}
+              {teacherAccountCount}
             </span>
           </div>
 
@@ -434,42 +488,61 @@ function Teachers() {
           </div>
         ) : (
           <div className="divide-y divide-[#ECEDE8]">
-            {filteredTeachers.map((teacher) => (
-              <div
-                key={teacher.id}
-                className="flex flex-col gap-4 p-5 transition hover:bg-[#FBFCF9] sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex min-w-0 items-center gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43]">
-                    {getTeacherInitials(teacher)}
+            {filteredTeachers.map((teacher) => {
+              const teacherClassrooms = getTeacherClassrooms(
+                teacher,
+                classrooms
+              );
+
+              return (
+                <div
+                  key={teacher.id}
+                  className="flex flex-col gap-4 p-5 transition hover:bg-[#FBFCF9] sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43]">
+                      {getTeacherInitials(teacher)}
+                    </div>
+
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-bold text-[#17382E]">
+                        {getUserName(teacher)}
+                      </h3>
+
+                      <p className="mt-1 truncate text-xs text-[#8A9691]">
+                        @{getUsername(teacher) || "teacher"}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="min-w-0">
-                    <h3 className="truncate text-sm font-bold text-[#17382E]">
-                      {getUserName(teacher)}
-                    </h3>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-[#66756F]">
+                    {teacher.phone && (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#F4F6F2] px-2.5 py-1.5">
+                        <Phone size={14} />
+                        {teacher.phone}
+                      </span>
+                    )}
 
-                    <p className="mt-1 truncate text-xs text-[#8A9691]">
-                      @{getUsername(teacher) || "teacher"}
-                    </p>
+                    {teacherClassrooms.length > 0 ? (
+                      teacherClassrooms.map((classroom) => (
+                        <span
+                          key={classroom.id}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#FFF7DF] px-2.5 py-1.5 font-medium text-[#8B6B14]"
+                        >
+                          <span>{classroom.grade}</span>
+                          <span className="text-[#B69A4D]">•</span>
+                          <span>{classroom.name}</span>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="rounded-lg bg-[#F3F4EF] px-2.5 py-1.5 font-medium text-[#7B8984]">
+                        No classroom assigned
+                      </span>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-3 text-xs text-[#66756F]">
-                  {teacher.phone && (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#F4F6F2] px-2.5 py-1.5">
-                      <Phone size={14} />
-                      {teacher.phone}
-                    </span>
-                  )}
-
-                  <span className="rounded-lg bg-[#FFF7DF] px-2.5 py-1.5 font-medium text-[#8B6B14]">
-                    {teacher.classrooms?.length ?? 0} classroom
-                    {(teacher.classrooms?.length ?? 0) === 1 ? "" : "s"}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -499,7 +572,10 @@ function Teachers() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6 p-5 sm:p-6">
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-6 p-5 sm:p-6"
+            >
               {error && (
                 <div className="rounded-xl border border-[#F1C8C3] bg-[#FFF4F2] px-4 py-3 text-sm text-[#A33A32]">
                   {error}
@@ -521,7 +597,10 @@ function Teachers() {
                       required
                       value={form.first_name}
                       onChange={(event) =>
-                        updateField("first_name", event.target.value)
+                        updateField(
+                          "first_name",
+                          event.target.value
+                        )
                       }
                       className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
                     />
@@ -536,7 +615,10 @@ function Teachers() {
                       required
                       value={form.last_name}
                       onChange={(event) =>
-                        updateField("last_name", event.target.value)
+                        updateField(
+                          "last_name",
+                          event.target.value
+                        )
                       }
                       className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
                     />
@@ -551,7 +633,10 @@ function Teachers() {
                       required
                       value={form.username}
                       onChange={(event) =>
-                        updateField("username", event.target.value)
+                        updateField(
+                          "username",
+                          event.target.value
+                        )
                       }
                       placeholder="e.g. jane.wanjiku"
                       className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
@@ -566,7 +651,10 @@ function Teachers() {
                     <input
                       value={form.phone}
                       onChange={(event) =>
-                        updateField("phone", event.target.value)
+                        updateField(
+                          "phone",
+                          event.target.value
+                        )
                       }
                       placeholder="e.g. 0712345678"
                       className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
@@ -582,7 +670,10 @@ function Teachers() {
                       type="email"
                       value={form.email}
                       onChange={(event) =>
-                        updateField("email", event.target.value)
+                        updateField(
+                          "email",
+                          event.target.value
+                        )
                       }
                       placeholder="teacher@school.ac.ke"
                       className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
@@ -600,7 +691,10 @@ function Teachers() {
                       type="password"
                       value={form.password}
                       onChange={(event) =>
-                        updateField("password", event.target.value)
+                        updateField(
+                          "password",
+                          event.target.value
+                        )
                       }
                       placeholder="At least 8 characters"
                       className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
@@ -637,13 +731,17 @@ function Teachers() {
                     </p>
                   ) : (
                     classrooms.map((classroom) => {
-                      const selected = form.classrooms.includes(classroom.id);
+                      const selected = form.classrooms.includes(
+                        classroom.id
+                      );
 
                       return (
                         <button
                           key={classroom.id}
                           type="button"
-                          onClick={() => toggleClassroom(classroom.id)}
+                          onClick={() =>
+                            toggleClassroom(classroom.id)
+                          }
                           className={[
                             "flex items-center justify-between rounded-xl border px-3 py-2.5 text-left transition",
                             selected
