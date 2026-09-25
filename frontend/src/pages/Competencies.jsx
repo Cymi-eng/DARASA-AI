@@ -57,7 +57,9 @@ function getToday() {
 }
 
 function getStudentName(student) {
-  if (!student) return "Unknown student";
+  if (!student) {
+    return "Unknown student";
+  }
 
   if (typeof student === "string") {
     return student;
@@ -81,7 +83,9 @@ function getStudentName(student) {
 
 function getLearningAreaLabel(value) {
   return (
-    LEARNING_AREAS.find((item) => item.value === value)?.label ||
+    LEARNING_AREAS.find(
+      (item) => item.value === value
+    )?.label ||
     value ||
     "Unknown"
   );
@@ -89,7 +93,9 @@ function getLearningAreaLabel(value) {
 
 function getMasteryDetails(value) {
   return (
-    MASTERY_LEVELS.find((item) => item.value === value) || {
+    MASTERY_LEVELS.find(
+      (item) => item.value === value
+    ) || {
       value,
       label: value,
       shortLabel: value,
@@ -133,17 +139,20 @@ function Competencies() {
   const [students, setStudents] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [studentsLoading, setStudentsLoading] =
+    useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [successMessage, setSuccessMessage] =
+    useState("");
 
   const [search, setSearch] = useState("");
   const [learningAreaFilter, setLearningAreaFilter] =
     useState("");
-  const [masteryFilter, setMasteryFilter] = useState("");
+  const [masteryFilter, setMasteryFilter] =
+    useState("");
 
   const [showForm, setShowForm] = useState(false);
 
@@ -201,7 +210,7 @@ function Competencies() {
     try {
       const response = await api.get("/students/", {
         params: {
-          page_size: 100,
+          page_size: 1000,
         },
       });
 
@@ -232,6 +241,60 @@ function Competencies() {
     loadStudents();
   }, []);
 
+  /*
+   * The competency API returns:
+   *
+   *     student: 61
+   *
+   * rather than:
+   *
+   *     student: {
+   *       id: 61,
+   *       first_name: "...",
+   *       last_name: "..."
+   *     }
+   *
+   * Build a lookup map from the students we already loaded.
+   */
+  const studentsById = useMemo(() => {
+    return students.reduce((map, student) => {
+      map[String(student.id)] = student;
+      return map;
+    }, {});
+  }, [students]);
+
+  function getAssessmentStudent(item) {
+    if (!item?.student) {
+      return null;
+    }
+
+    if (typeof item.student === "object") {
+      return item.student;
+    }
+
+    return studentsById[String(item.student)] || null;
+  }
+
+  function getAssessmentStudentName(item) {
+    const student = getAssessmentStudent(item);
+
+    if (student) {
+      return getStudentName(student);
+    }
+
+    if (item?.student) {
+      return `Student #${item.student}`;
+    }
+
+    return "Unknown student";
+  }
+
+  function getAssessmentAdmissionNumber(item) {
+    const student = getAssessmentStudent(item);
+
+    return student?.admission_number || "";
+  }
+
   const filteredCompetencies = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -240,7 +303,9 @@ function Competencies() {
     }
 
     return competencies.filter((item) => {
-      const studentName = getStudentName(item.student);
+      const studentName =
+        getAssessmentStudentName(item);
+
       const learningArea = getLearningAreaLabel(
         item.learning_area
       );
@@ -258,7 +323,7 @@ function Competencies() {
             .includes(query)
         );
     });
-  }, [competencies, search]);
+  }, [competencies, search, studentsById]);
 
   const masteryCounts = useMemo(
     () => ({
@@ -655,9 +720,10 @@ function Competencies() {
 
                 <tbody>
                   {filteredCompetencies.map((item) => {
-                    const mastery = getMasteryDetails(
-                      item.mastery_level
-                    );
+                    const mastery =
+                      getMasteryDetails(
+                        item.mastery_level
+                      );
 
                     const masteryStyles = {
                       EE: "bg-[#EAF3EE] text-[#0B5D43]",
@@ -665,6 +731,12 @@ function Competencies() {
                       AE: "bg-[#FFF7E4] text-[#9A7600]",
                       BE: "bg-[#FFF0EE] text-[#B33A31]",
                     };
+
+                    const studentName =
+                      getAssessmentStudentName(item);
+
+                    const admissionNumber =
+                      getAssessmentAdmissionNumber(item);
 
                     return (
                       <tr
@@ -679,22 +751,14 @@ function Competencies() {
 
                             <div>
                               <p className="text-sm font-semibold text-[#17382E]">
-                                {getStudentName(
-                                  item.student
-                                )}
+                                {studentName}
                               </p>
 
-                              {typeof item.student ===
-                                "object" &&
-                                item.student
-                                  ?.admission_number && (
-                                  <p className="mt-0.5 text-xs text-[#9AA49F]">
-                                    {
-                                      item.student
-                                        .admission_number
-                                    }
-                                  </p>
-                                )}
+                              {admissionNumber && (
+                                <p className="mt-0.5 text-xs text-[#9AA49F]">
+                                  {admissionNumber}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -749,9 +813,10 @@ function Competencies() {
             {/* MOBILE RECORDS */}
             <div className="divide-y divide-[#EEF0EB] lg:hidden">
               {filteredCompetencies.map((item) => {
-                const mastery = getMasteryDetails(
-                  item.mastery_level
-                );
+                const mastery =
+                  getMasteryDetails(
+                    item.mastery_level
+                  );
 
                 const masteryStyles = {
                   EE: "bg-[#EAF3EE] text-[#0B5D43]",
@@ -773,7 +838,9 @@ function Competencies() {
 
                         <div>
                           <p className="text-sm font-semibold text-[#17382E]">
-                            {getStudentName(item.student)}
+                            {getAssessmentStudentName(
+                              item
+                            )}
                           </p>
 
                           <p className="mt-1 text-xs text-[#8A9691]">
@@ -1009,7 +1076,7 @@ function Competencies() {
                     value={form.sub_strand}
                     onChange={handleFormChange}
                     placeholder="e.g. Whole numbers"
-                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 py-3 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
                   />
                 </div>
               </div>
