@@ -68,13 +68,28 @@ function extractErrorMessage(error, fallback) {
     : fallback;
 }
 
+function getStudentClassroomId(student) {
+  if (!student) {
+    return null;
+  }
+
+  if (typeof student.classroom === "object") {
+    return student.classroom?.id ?? null;
+  }
+
+  return student.classroom ?? null;
+}
+
 function Classrooms() {
   const [classrooms, setClassrooms] = useState([]);
+  const [students, setStudents] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [studentsLoading, setStudentsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [error, setError] = useState("");
+  const [studentsError, setStudentsError] = useState("");
   const [formError, setFormError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -122,9 +137,92 @@ function Classrooms() {
     }
   }
 
+  async function loadStudents() {
+    setStudentsLoading(true);
+    setStudentsError("");
+
+    try {
+      const response = await api.get("/students/", {
+        params: {
+          page_size: 1000,
+        },
+      });
+
+      const data = response.data;
+
+      setStudents(
+        Array.isArray(data)
+          ? data
+          : data.results || []
+      );
+    } catch (requestError) {
+      setStudentsError(
+        extractErrorMessage(
+          requestError,
+          "Unable to load student assignments."
+        )
+      );
+    } finally {
+      setStudentsLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadClassrooms();
   }, [gradeFilter]);
+
+  useEffect(() => {
+    loadStudents();
+  }, []);
+
+  /*
+   * Build a classroom ID -> student count map.
+   *
+   * The classroom API does not currently return student_count,
+   * so we calculate it from the real student records.
+   */
+  const studentCountsByClassroom = useMemo(() => {
+    return students.reduce((counts, student) => {
+      const classroomId = getStudentClassroomId(student);
+
+      if (!classroomId) {
+        return counts;
+      }
+
+      const key = String(classroomId);
+
+      counts[key] = (counts[key] || 0) + 1;
+
+      return counts;
+    }, {});
+  }, [students]);
+
+  function getClassroomStudentCount(classroom) {
+    if (!classroom) {
+      return 0;
+    }
+
+    /*
+     * Keep support for a future backend student_count field.
+     */
+    if (
+      typeof classroom.student_count === "number"
+    ) {
+      return classroom.student_count;
+    }
+
+    if (
+      typeof classroom.students_count === "number"
+    ) {
+      return classroom.students_count;
+    }
+
+    return (
+      studentCountsByClassroom[
+        String(classroom.id)
+      ] || 0
+    );
+  }
 
   const filteredClassrooms = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -272,7 +370,7 @@ function Classrooms() {
       )}
 
       {/* ERROR */}
-      {error && (
+      {(error || studentsError) && (
         <div className="flex items-start gap-3 rounded-xl border border-[#F3C5C1] bg-[#FFF3F1] px-4 py-3 text-sm text-[#B42318]">
           <AlertCircle
             size={19}
@@ -281,10 +379,18 @@ function Classrooms() {
 
           <div>
             <p className="font-semibold">
-              Classrooms could not be loaded
+              Classroom data could not be fully loaded
             </p>
 
-            <p className="mt-1">{error}</p>
+            {error && (
+              <p className="mt-1">{error}</p>
+            )}
+
+            {studentsError && (
+              <p className="mt-1">
+                {studentsError}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -547,9 +653,17 @@ function Classrooms() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2 text-sm text-[#52645D]">
                             <Users size={17} />
-                            {classroom.student_count ??
-                              classroom.students_count ??
-                              0}
+
+                            {studentsLoading ? (
+                              <Loader2
+                                size={16}
+                                className="animate-spin"
+                              />
+                            ) : (
+                              getClassroomStudentCount(
+                                classroom
+                              )
+                            )}
                           </div>
                         </td>
 
@@ -604,9 +718,17 @@ function Classrooms() {
 
                         <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-[#405650]">
                           <Users size={15} />
-                          {classroom.student_count ??
-                            classroom.students_count ??
-                            0}
+
+                          {studentsLoading ? (
+                            <Loader2
+                              size={15}
+                              className="animate-spin"
+                            />
+                          ) : (
+                            getClassroomStudentCount(
+                              classroom
+                            )
+                          )}
                         </p>
                       </div>
 
@@ -682,7 +804,9 @@ function Classrooms() {
                   className="mb-2 block text-sm font-semibold text-[#405650]"
                 >
                   Classroom Name{" "}
-                  <span className="text-[#B33A31]">*</span>
+                  <span className="text-[#B33A31]">
+                    *
+                  </span>
                 </label>
 
                 <input
@@ -708,7 +832,9 @@ function Classrooms() {
                   className="mb-2 block text-sm font-semibold text-[#405650]"
                 >
                   Grade{" "}
-                  <span className="text-[#B33A31]">*</span>
+                  <span className="text-[#B33A31]">
+                    *
+                  </span>
                 </label>
 
                 <select
