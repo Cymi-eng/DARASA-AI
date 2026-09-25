@@ -9,7 +9,7 @@ from .fee_payments import FeePaymentViewSet
 from .fee_ledger import FeeLedgerViewSet
 from .notifications import NotificationViewSet
 from .dashboard import DashboardViewSet
-
+from .demo import DemoDataViewSet
 
 __all__ = [
     "SchoolScopedViewSet",
@@ -23,4 +23,5 @@ __all__ = [
     "FeeLedgerViewSet",
     "NotificationViewSet",
     "DashboardViewSet",
+    "DemoDataViewSet",
 ]

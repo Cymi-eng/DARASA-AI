@@ -18,6 +18,7 @@ from core.views import (
     FeeLedgerViewSet,
     NotificationViewSet,
     DashboardViewSet,
+    DemoDataViewSet,
 )
 
 from core.views.mpesa import mpesa_callback
@@ -71,6 +72,10 @@ router.register(
     r"notifications",
     NotificationViewSet,
 )
+router.register(
+    r"demo",
+     DemoDataViewSet,
+     basename="demo")
 
 
 urlpatterns = [
