@@ -190,6 +190,21 @@ class TeacherSerializer(serializers.ModelSerializer):
         queryset=User.objects.all(),
     )
 
+    user_first_name = serializers.CharField(
+        source="user.first_name",
+        read_only=True,
+    )
+
+    user_last_name = serializers.CharField(
+        source="user.last_name",
+        read_only=True,
+    )
+
+    username = serializers.CharField(
+        source="user.username",
+        read_only=True,
+    )
+
     classrooms = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=ClassRoom.objects.all(),
@@ -205,6 +220,9 @@ class TeacherSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "user",
+            "user_first_name",
+            "user_last_name",
+            "username",
             "school",
             "classrooms",
             "phone",
@@ -212,6 +230,9 @@ class TeacherSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "school",
+            "user_first_name",
+            "user_last_name",
+            "username",
         ]
 
     def validate(self, attrs):
