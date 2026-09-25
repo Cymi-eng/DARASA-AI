@@ -32,6 +32,9 @@ class Command(BaseCommand):
             )
         )
 
+        # ---------------------------------------------------------
+        # 1. FIND THE ADMINISTRATOR'S SCHOOL
+        # ---------------------------------------------------------
         admin_username = "simi"
 
         try:
@@ -53,6 +56,13 @@ class Command(BaseCommand):
 
         school = profile.school
 
+        self.stdout.write(
+            f"Using school: {school.name}"
+        )
+
+        # ---------------------------------------------------------
+        # 2. CREATE / UPDATE CLASSROOMS
+        # ---------------------------------------------------------
         classrooms_data = [
             ("PP1 Sunshine", "PP1"),
             ("PP2 Rainbow", "PP2"),
@@ -79,10 +89,19 @@ class Command(BaseCommand):
             )
 
             classroom.grade = grade
-            classroom.save(update_fields=["grade"])
+            classroom.school = school
+            classroom.save(
+                update_fields=[
+                    "grade",
+                    "school",
+                ]
+            )
 
             classrooms[name] = classroom
 
+        # ---------------------------------------------------------
+        # 3. CREATE / UPDATE DEMO TEACHERS
+        # ---------------------------------------------------------
         teachers_data = [
             (
                 "jane.wanjiku",
@@ -144,6 +163,7 @@ class Command(BaseCommand):
             phone,
             classroom_name,
         ) in teachers_data:
+
             user, _ = User.objects.get_or_create(
                 username=username,
                 defaults={
@@ -189,12 +209,16 @@ class Command(BaseCommand):
                 ]
             )
 
+            # Assign teacher to their demonstration classroom.
             teacher.classrooms.set(
                 [classrooms[classroom_name]]
             )
 
             teachers.append(teacher)
 
+        # ---------------------------------------------------------
+        # 4. DEMO STUDENT DATA
+        # ---------------------------------------------------------
         first_names = [
             "Brian",
             "Faith",
@@ -231,6 +255,15 @@ class Command(BaseCommand):
             "Mutua",
         ]
 
+        grades = [
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+        ]
+
         learning_areas = [
             ("MATH", "Numbers and Operations"),
             ("ENG", "Reading and Comprehension"),
@@ -249,28 +282,35 @@ class Command(BaseCommand):
 
         students = []
 
-        grades = [
-            "G1",
-            "G2",
-            "G3",
-            "G4",
-            "G5",
-            "G6",
-        ]
-
+        # ---------------------------------------------------------
+        # 5. CREATE / UPDATE 60 STUDENTS
+        # ---------------------------------------------------------
         for index in range(60):
-            first_name = first_names[index % len(first_names)]
-            last_name = last_names[index % len(last_names)]
+            first_name = first_names[
+                index % len(first_names)
+            ]
 
-            grade_index = index % 6
+            last_name = last_names[
+                index % len(last_names)
+            ]
+
+            grade_index = index % len(grades)
             grade = grades[grade_index]
 
+            # Get all classrooms belonging to this grade.
             grade_classrooms = [
                 classroom
                 for classroom in classrooms.values()
                 if classroom.grade == grade
             ]
 
+            if not grade_classrooms:
+                raise CommandError(
+                    f"No classroom exists for grade '{grade}'."
+                )
+
+            # Distribute students across the available
+            # classrooms for their grade.
             classroom = grade_classrooms[
                 index % len(grade_classrooms)
             ]
@@ -301,6 +341,12 @@ class Command(BaseCommand):
                 },
             )
 
+            # IMPORTANT:
+            # Always update these fields, even when the
+            # student already exists.
+            #
+            # This fixes previously-created students that
+            # had classroom=NULL.
             student.first_name = first_name
             student.last_name = last_name
             student.grade = grade
@@ -312,14 +358,29 @@ class Command(BaseCommand):
             student.guardian_phone = (
                 f"0722{index + 1:06d}"
             )
-            student.save()
+
+            student.save(
+                update_fields=[
+                    "first_name",
+                    "last_name",
+                    "grade",
+                    "school",
+                    "classroom",
+                    "guardian_name",
+                    "guardian_phone",
+                ]
+            )
 
             students.append(student)
 
+            # -----------------------------------------------------
+            # 6. CREATE CBC ASSESSMENTS
+            # -----------------------------------------------------
             for area_index, (
                 learning_area,
                 strand,
             ) in enumerate(learning_areas):
+
                 assessed_on = (
                     date.today()
                     - timedelta(
@@ -339,8 +400,7 @@ class Command(BaseCommand):
                     assessed_on=assessed_on,
                     defaults={
                         "sub_strand": (
-                            "Demonstration of "
-                            "competency"
+                            "Demonstration of competency"
                         ),
                         "mastery_level": mastery_level,
                         "teacher_notes": (
@@ -350,6 +410,9 @@ class Command(BaseCommand):
                     },
                 )
 
+        # ---------------------------------------------------------
+        # 7. DEMO FEE PAYMENTS
+        # ---------------------------------------------------------
         for index, student in enumerate(
             students[:30]
         ):
@@ -377,6 +440,22 @@ class Command(BaseCommand):
                 },
             )
 
+            # Keep existing demo payment linked to the
+            # correct student as well.
+            payment.student = student
+            payment.amount = amount
+            payment.status = "CONFIRMED"
+            payment.paid_at = date.today()
+
+            payment.save(
+                update_fields=[
+                    "student",
+                    "amount",
+                    "status",
+                    "paid_at",
+                ]
+            )
+
             FeeLedgerEntry.objects.get_or_create(
                 payment=payment,
                 entry_type="PAYMENT",
@@ -391,6 +470,9 @@ class Command(BaseCommand):
                 },
             )
 
+        # ---------------------------------------------------------
+        # 8. DEMO NOTIFICATIONS
+        # ---------------------------------------------------------
         for index, student in enumerate(
             students[:15]
         ):
@@ -413,7 +495,11 @@ class Command(BaseCommand):
                 },
             )
 
+        # ---------------------------------------------------------
+        # 9. FINAL SUMMARY
+        # ---------------------------------------------------------
         self.stdout.write("")
+
         self.stdout.write(
             self.style.SUCCESS(
                 "Darasa-AI demonstration data created successfully."
@@ -425,15 +511,53 @@ class Command(BaseCommand):
         )
 
         self.stdout.write(
-            f"Classrooms: {ClassRoom.objects.filter(school=school).count()}"
+            f"Classrooms: "
+            f"{ClassRoom.objects.filter(school=school).count()}"
         )
 
         self.stdout.write(
-            f"Teachers: {Teacher.objects.filter(school=school).count()}"
+            f"Teachers: "
+            f"{Teacher.objects.filter(school=school).count()}"
         )
 
         self.stdout.write(
-            f"Students: {Student.objects.filter(school=school).count()}"
+            f"Students: "
+            f"{Student.objects.filter(school=school).count()}"
+        )
+
+        assigned_students = Student.objects.filter(
+            school=school,
+            classroom__isnull=False,
+        ).count()
+
+        unassigned_students = Student.objects.filter(
+            school=school,
+            classroom__isnull=True,
+        ).count()
+
+        self.stdout.write(
+            f"Students assigned to classrooms: "
+            f"{assigned_students}"
+        )
+
+        self.stdout.write(
+            f"Students without classrooms: "
+            f"{unassigned_students}"
+        )
+
+        self.stdout.write(
+            f"Competencies: "
+            f"{Competency.objects.filter(student__school=school).count()}"
+        )
+
+        self.stdout.write(
+            f"Fee Payments: "
+            f"{FeePayment.objects.filter(student__school=school).count()}"
+        )
+
+        self.stdout.write(
+            f"Notifications: "
+            f"{Notification.objects.filter(school=school).count()}"
         )
 
         self.stdout.write(
