@@ -29,6 +29,21 @@ class StudentViewSet(SchoolScopedViewSet):
                 school=school
             )
 
+        user = self.request.user
+
+        # Teachers can only access learners in classrooms
+        # assigned to them. School admins retain access to
+        # all learners in their school.
+        if (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "TEACHER"
+        ):
+            queryset = queryset.filter(
+                classroom__teachers__user=user
+            ).distinct()
+
         grade = self.request.query_params.get(
             "grade"
         )
