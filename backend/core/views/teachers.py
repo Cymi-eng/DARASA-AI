@@ -15,6 +15,10 @@ class TeacherViewSet(SchoolScopedViewSet):
 
     Only school administrators can manage teacher
     records.
+
+    Classroom assignments are loaded efficiently because
+    teacher-to-classroom relationships are used throughout
+    the role-based access system.
     """
 
     queryset = Teacher.objects.all()
@@ -29,6 +33,8 @@ class TeacherViewSet(SchoolScopedViewSet):
         queryset = Teacher.objects.all().select_related(
             "user",
             "school",
+        ).prefetch_related(
+            "classrooms",
         )
 
         # Superusers can access teachers across all schools.
