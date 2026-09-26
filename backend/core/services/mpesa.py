@@ -92,38 +92,6 @@ class MpesaService:
                 "'sandbox' or 'production'."
             )
 
-    def _normalize_phone_number(self, phone_number):
-        """
-        Convert Kenyan phone numbers to Daraja format.
-
-        Examples:
-            0708374149   -> 254708374149
-            708374149    -> 254708374149
-            254708374149 -> 254708374149
-        """
-
-        phone = str(phone_number).strip()
-
-        if phone.startswith("+254"):
-            phone = phone[1:]
-
-        elif phone.startswith("0"):
-            phone = "254" + phone[1:]
-
-        elif len(phone) == 9 and phone.startswith("7"):
-            phone = "254" + phone
-
-        if (
-            len(phone) != 12
-            or not phone.startswith("254")
-            or not phone[3:].isdigit()
-        ):
-            raise MpesaError(
-                "Enter a valid Kenyan M-Pesa phone number."
-            )
-
-        return phone
-
     def get_access_token(self):
         """
         Request an OAuth access token from Daraja.
@@ -157,6 +125,7 @@ class MpesaService:
                 },
                 timeout=30,
             )
+
         except requests.RequestException as exc:
             raise MpesaError(
                 "Unable to connect to M-Pesa."
@@ -164,21 +133,29 @@ class MpesaService:
 
         if not response.ok:
             raise MpesaError(
-                "Failed to obtain M-Pesa access token."
+                "M-Pesa OAuth failed "
+                f"(HTTP {response.status_code}): "
+                f"{response.text[:500]}"
             )
 
         try:
             data = response.json()
+
         except ValueError as exc:
             raise MpesaError(
-                "M-Pesa returned an invalid response."
+                "M-Pesa returned an invalid OAuth response: "
+                f"{response.text[:500]}"
             ) from exc
 
-        access_token = data.get("access_token")
+        access_token = data.get(
+            "access_token"
+        )
 
         if not access_token:
             raise MpesaError(
-                "M-Pesa access token was not returned."
+                "M-Pesa OAuth response did not "
+                "contain an access token: "
+                f"{response.text[:500]}"
             )
 
         return access_token
@@ -197,6 +174,41 @@ class MpesaService:
         return base64.b64encode(
             raw.encode("utf-8")
         ).decode("utf-8")
+
+    def _normalize_phone_number(self, phone_number):
+        """
+        Convert common Kenyan phone formats to
+        the Daraja format: 2547XXXXXXXX.
+        """
+
+        phone = str(phone_number).strip()
+
+        phone = (
+            phone.replace(" ", "")
+            .replace("-", "")
+            .replace("+", "")
+        )
+
+        if phone.startswith("07") or phone.startswith("01"):
+            phone = "254" + phone[1:]
+
+        elif phone.startswith("7") or phone.startswith("1"):
+            phone = "254" + phone
+
+        if not phone.isdigit():
+            raise MpesaError(
+                "Invalid M-Pesa phone number."
+            )
+
+        if len(phone) != 12 or not phone.startswith(
+            "254"
+        ):
+            raise MpesaError(
+                "M-Pesa phone number must be a valid "
+                "Kenyan number."
+            )
+
+        return phone
 
     def initiate_stk_push(
         self,
@@ -217,19 +229,6 @@ class MpesaService:
             phone_number
         )
 
-        if not account_reference:
-            raise MpesaError(
-                "A payment account reference is required."
-            )
-
-        account_reference = str(
-            account_reference
-        )[:12]
-
-        transaction_desc = str(
-            transaction_desc or "School fee"
-        )[:13]
-
         try:
             amount = int(amount)
         except (TypeError, ValueError) as exc:
@@ -240,6 +239,24 @@ class MpesaService:
         if amount <= 0:
             raise MpesaError(
                 "Payment amount must be greater than zero."
+            )
+
+        account_reference = str(
+            account_reference
+        ).strip()[:12]
+
+        transaction_desc = str(
+            transaction_desc
+        ).strip()[:13]
+
+        if not account_reference:
+            raise MpesaError(
+                "Account reference is required."
+            )
+
+        if not transaction_desc:
+            raise MpesaError(
+                "Transaction description is required."
             )
 
         access_token = self.get_access_token()
@@ -288,28 +305,27 @@ class MpesaService:
                 },
                 timeout=30,
             )
+
         except requests.RequestException as exc:
             raise MpesaError(
-                "Unable to connect to M-Pesa."
-            ) from exc
-
-        try:
-            data = response.json()
-        except ValueError as exc:
-            raise MpesaError(
-                "M-Pesa returned an invalid response."
+                "Unable to connect to M-Pesa STK service."
             ) from exc
 
         if not response.ok:
-            description = data.get(
-                "errorMessage"
-                or "error_description"
+            raise MpesaError(
+                "M-Pesa STK Push failed "
+                f"(HTTP {response.status_code}): "
+                f"{response.text[:500]}"
             )
 
+        try:
+            data = response.json()
+
+        except ValueError as exc:
             raise MpesaError(
-                description
-                or "M-Pesa STK Push request failed."
-            )
+                "M-Pesa returned an invalid STK response: "
+                f"{response.text[:500]}"
+            ) from exc
 
         response_code = data.get(
             "ResponseCode"
