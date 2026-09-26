@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Finance from "./pages/Finance.jsx";
 import Login from "./pages/Login.jsx";
 import Students from "./pages/Students.jsx";
+import TeacherPortal from "./pages/TeacherPortal.jsx";
 import Teachers from "./pages/Teachers.jsx";
 
 function ProtectedRoute({ children }) {
@@ -97,6 +98,15 @@ function App() {
         element={
           <ProtectedRoute>
             <Finance />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/teacher-portal"
+        element={
+          <ProtectedRoute>
+            <TeacherPortal />
           </ProtectedRoute>
         }
       />
