@@ -26,8 +26,11 @@ class CompetencyViewSet(SchoolScopedViewSet):
     - view classroom competency summaries
     - identify student intervention areas
 
-    All assessments are automatically isolated
-    to the authenticated user's school.
+    School administrators can access all learners
+    within their school.
+
+    Teachers can only access learners belonging to
+    classrooms assigned to them.
     """
 
     queryset = Competency.objects.all()
@@ -36,12 +39,88 @@ class CompetencyViewSet(SchoolScopedViewSet):
     def get_permissions(self):
         return [IsAdminOrTeacher()]
 
+    def _is_teacher(self):
+        """
+        Return True when the authenticated user is
+        a non-superuser teacher.
+        """
+
+        user = self.request.user
+
+        return (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "TEACHER"
+        )
+
+    def _teacher_can_access_student(self, student):
+        """
+        Check whether the current teacher is assigned
+        to the student's classroom.
+
+        School administrators and superusers are handled
+        outside this method.
+        """
+
+        if not self._is_teacher():
+            return True
+
+        return student.classroom is not None and student.classroom.teachers.filter(
+            user=self.request.user
+        ).exists()
+
+    def _validate_student_access(self, student):
+        """
+        Validate school isolation and teacher classroom
+        assignment for a student.
+        """
+
+        school = self.get_school()
+
+        if school is not None and student.school_id != school.id:
+            raise ValidationError(
+                {
+                    "student": (
+                        "Student does not belong "
+                        "to your school."
+                    )
+                }
+            )
+
+        if not self._teacher_can_access_student(student):
+            raise ValidationError(
+                {
+                    "student": (
+                        "You can only assess students "
+                        "in your assigned classrooms."
+                    )
+                }
+            )
+
+    def _student_is_accessible(self, student):
+        """
+        Return whether the current user can access
+        the supplied student.
+        """
+
+        school = self.get_school()
+
+        if (
+            school is not None
+            and student.school_id != school.id
+        ):
+            return False
+
+        return self._teacher_can_access_student(student)
+
     def get_queryset(self):
         school = self.get_school()
 
         queryset = Competency.objects.all().select_related(
             "student",
             "student__school",
+            "student__classroom",
         )
 
         # School isolation.
@@ -49,6 +128,13 @@ class CompetencyViewSet(SchoolScopedViewSet):
             queryset = queryset.filter(
                 student__school=school
             )
+
+        # Teachers can only see assessments belonging
+        # to students in classrooms assigned to them.
+        if self._is_teacher():
+            queryset = queryset.filter(
+                student__classroom__teachers__user=self.request.user
+            ).distinct()
 
         # Filter by student.
         student = self.request.query_params.get(
@@ -139,27 +225,16 @@ class CompetencyViewSet(SchoolScopedViewSet):
         """
         Create a competency assessment.
 
-        Normal users can only assess students belonging
-        to their own school.
+        School administrators can assess any learner
+        within their school.
+
+        Teachers can only assess learners belonging
+        to their assigned classrooms.
         """
-
-        school = self.get_school()
-
-        if school is None:
-            serializer.save()
-            return
 
         student = serializer.validated_data["student"]
 
-        if student.school_id != school.id:
-            raise ValidationError(
-                {
-                    "student": (
-                        "Student does not belong "
-                        "to your school."
-                    )
-                }
-            )
+        self._validate_student_access(student)
 
         serializer.save()
 
@@ -167,31 +242,17 @@ class CompetencyViewSet(SchoolScopedViewSet):
         """
         Update an existing competency assessment.
 
-        The student's school is checked again so that
-        an assessment cannot be moved to a student
-        from another school.
+        The student's school and teacher classroom
+        assignment are checked again so an assessment
+        cannot be moved outside the user's access scope.
         """
-
-        school = self.get_school()
-
-        if school is None:
-            serializer.save()
-            return
 
         student = serializer.validated_data.get(
             "student",
             serializer.instance.student,
         )
 
-        if student.school_id != school.id:
-            raise ValidationError(
-                {
-                    "student": (
-                        "Student does not belong "
-                        "to your school."
-                    )
-                }
-            )
+        self._validate_student_access(student)
 
         serializer.save()
 
@@ -259,11 +320,7 @@ class CompetencyViewSet(SchoolScopedViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Enforce school isolation.
-        if (
-            school is not None
-            and student.school_id != school.id
-        ):
+        if not self._student_is_accessible(student):
             return Response(
                 {
                     "detail": "Student not found."
@@ -349,8 +406,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
         AE = medium priority
         """
 
-        school = self.get_school()
-
         try:
             student = Student.objects.select_related(
                 "school",
@@ -366,11 +421,7 @@ class CompetencyViewSet(SchoolScopedViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Enforce school isolation.
-        if (
-            school is not None
-            and student.school_id != school.id
-        ):
+        if not self._student_is_accessible(student):
             return Response(
                 {
                     "detail": "Student not found."
@@ -476,6 +527,9 @@ class CompetencyViewSet(SchoolScopedViewSet):
     ):
         """
         Return CBC competency summary for a classroom.
+
+        Teachers can only view summaries for classrooms
+        assigned to them.
         """
 
         school = self.get_school()
@@ -488,6 +542,12 @@ class CompetencyViewSet(SchoolScopedViewSet):
         if school is not None:
             students = students.filter(
                 school=school
+            )
+
+        # Teachers can only view assigned classrooms.
+        if self._is_teacher():
+            students = students.filter(
+                classroom__teachers__user=self.request.user
             )
 
         students = students.select_related(
