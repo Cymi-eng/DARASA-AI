@@ -13,6 +13,9 @@ class ClassRoomViewSet(SchoolScopedViewSet):
     Classrooms are automatically restricted to the
     authenticated user's school.
 
+    Teachers can only access classrooms assigned
+    to their teacher profile.
+
     Supports filtering by:
 
     - grade
@@ -37,6 +40,20 @@ class ClassRoomViewSet(SchoolScopedViewSet):
             queryset = queryset.filter(
                 school=school
             )
+
+        user = self.request.user
+
+        # Teachers can only access classrooms assigned
+        # to their teacher profile.
+        if (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "TEACHER"
+        ):
+            queryset = queryset.filter(
+                teachers__user=user
+            ).distinct()
 
         # Filter by grade.
         grade = self.request.query_params.get(
@@ -70,4 +87,3 @@ class ClassRoomViewSet(SchoolScopedViewSet):
         serializer.save(
             school=school
         )
-        
