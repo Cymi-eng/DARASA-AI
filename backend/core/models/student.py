@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.db import models
 
 from .school import School
@@ -15,8 +16,21 @@ class Student(models.Model):
         ("G6", "Grade 6"),
     ]
 
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
+    user = models.OneToOneField(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="student_record",
+        null=True,
+        blank=True,
+    )
+
+    first_name = models.CharField(
+        max_length=100
+    )
+
+    last_name = models.CharField(
+        max_length=100
+    )
 
     admission_number = models.CharField(
         max_length=20,
