@@ -65,7 +65,7 @@ class Command(BaseCommand):
         )
 
         profile.school = school
-        profile.role = UserProfile.ROLE_ADMIN
+        profile.role = "ADMIN"
         profile.save(
             update_fields=[
                 "school",
