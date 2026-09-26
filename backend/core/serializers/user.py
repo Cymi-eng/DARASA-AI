@@ -64,7 +64,10 @@ class UserAccountSerializer(serializers.ModelSerializer):
         profile_data = attrs.get("profile", {})
         requested_school = profile_data.get("school")
 
-        if requested_school and requested_school.id != profile.school_id:
+        if (
+            requested_school
+            and requested_school.id != profile.school_id
+        ):
             raise serializers.ValidationError(
                 {
                     "school": (
@@ -97,7 +100,10 @@ class UserAccountSerializer(serializers.ModelSerializer):
                 None,
             )
 
-            if request_profile and request_profile.school_id:
+            if (
+                request_profile
+                and request_profile.school_id
+            ):
                 school = request_profile.school
 
         if not password:
@@ -243,37 +249,65 @@ class TeacherSerializer(serializers.ModelSerializer):
                 "Authentication is required."
             )
 
-        school = (
-            None
-            if request.user.is_superuser
-            else request.user.profile.school
-        )
+        if request.user.is_superuser:
+            school = None
+        else:
+            profile = getattr(
+                request.user,
+                "profile",
+                None,
+            )
+
+            if not profile or not profile.school_id:
+                raise serializers.ValidationError(
+                    "Your account is not associated with a school."
+                )
+
+            school = profile.school
 
         user = attrs.get("user")
 
-        if school and user:
+        if user is not None:
             user_profile = getattr(
                 user,
                 "profile",
                 None,
             )
 
-            if (
-                not user_profile
-                or user_profile.school_id != school.id
-            ):
+            if not user_profile:
                 raise serializers.ValidationError(
                     {
                         "user": (
-                            "Teacher user must belong "
-                            "to your school."
+                            "The selected user does not "
+                            "have a user profile."
                         )
                     }
                 )
 
+            if user_profile.role != UserProfile.ROLE_TEACHER:
+                raise serializers.ValidationError(
+                    {
+                        "user": (
+                            "The selected user must have "
+                            "the TEACHER role."
+                        )
+                    }
+                )
+
+            if school is not None:
+                if user_profile.school_id != school.id:
+                    raise serializers.ValidationError(
+                        {
+                            "user": (
+                                "Teacher user must belong "
+                                "to your school."
+                            )
+                        }
+                    )
+
         classrooms = attrs.get("classrooms", [])
 
-        if school:
+        if school is not None:
             invalid_classrooms = [
                 classroom.id
                 for classroom in classrooms
