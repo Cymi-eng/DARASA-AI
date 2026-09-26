@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   BarChart3,
@@ -15,6 +16,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 function Login() {
   const { login } = useAuth();
+  const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -23,6 +25,29 @@ function Login() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const getRoleRedirect = (role) => {
+    switch (role) {
+      case "TEACHER":
+        return "/teacher-portal";
+
+      case "BURSAR":
+        return "/finance";
+
+      case "STUDENT":
+        return "/student-portal";
+
+      case "PARENT":
+        return "/parent-portal";
+
+      case "PLATFORM_ADMIN":
+        return "/platform-admin";
+
+      case "ADMIN":
+      default:
+        return "/dashboard";
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -30,7 +55,11 @@ function Login() {
     setIsSubmitting(true);
 
     try {
-      await login(username, password);
+      const user = await login(username, password);
+
+      navigate(getRoleRedirect(user.role), {
+        replace: true,
+      });
     } catch (requestError) {
       setError(
         requestError.response?.data?.detail ||
@@ -52,12 +81,12 @@ function Login() {
 
           {/* Classroom image */}
           <div
-  className="absolute inset-0 bg-cover bg-center"
-  style={{
-    backgroundImage:
-      "url('https://mogotiolittlefriends.sc.ke/assets/images/school/Class_2.jpg')",
-  }}
-/>
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage:
+                "url('https://mogotiolittlefriends.sc.ke/assets/images/school/Class_2.jpg')",
+            }}
+          />
 
           {/* Main green image overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-[#07382a]/45 via-[#07382a]/35 to-[#03251b]/95" />
