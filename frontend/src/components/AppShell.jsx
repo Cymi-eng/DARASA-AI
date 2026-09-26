@@ -19,7 +19,7 @@ import { NavLink } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 
-const navigation = [
+const adminNavigation = [
   {
     label: "Overview",
     path: "/dashboard",
@@ -62,14 +62,197 @@ const navigation = [
   },
 ];
 
+const teacherNavigation = [
+  {
+    label: "Teacher Workspace",
+    path: "/teacher-portal",
+    icon: LayoutDashboard,
+  },
+  {
+    label: "My Learners",
+    path: "/students",
+    icon: GraduationCap,
+  },
+  {
+    label: "My Classrooms",
+    path: "/classrooms",
+    icon: School,
+  },
+  {
+    label: "CBC Assessment",
+    path: "/competencies",
+    icon: BookOpenCheck,
+  },
+  {
+    label: "Learner Analytics",
+    path: "/analytics",
+    icon: BarChart3,
+  },
+  {
+    label: "Notifications",
+    path: "/notifications",
+    icon: Bell,
+  },
+];
+
+const bursarNavigation = [
+  {
+    label: "Finance",
+    path: "/finance",
+    icon: CreditCard,
+  },
+  {
+    label: "Students",
+    path: "/students",
+    icon: GraduationCap,
+  },
+  {
+    label: "Notifications",
+    path: "/notifications",
+    icon: Bell,
+  },
+];
+
+function getNavigationForRole(role) {
+  switch (role) {
+    case "TEACHER":
+      return teacherNavigation;
+
+    case "BURSAR":
+      return bursarNavigation;
+
+    case "ADMIN":
+    case "PLATFORM_ADMIN":
+    default:
+      return adminNavigation;
+  }
+}
+
+function getPortalTitle(role) {
+  switch (role) {
+    case "TEACHER":
+      return "Teacher Workspace";
+
+    case "BURSAR":
+      return "Finance Workspace";
+
+    case "PLATFORM_ADMIN":
+      return "Platform Administration";
+
+    case "STUDENT":
+      return "Student Workspace";
+
+    case "PARENT":
+      return "Parent Workspace";
+
+    case "ADMIN":
+    default:
+      return "School Administration";
+  }
+}
+
+function getPortalSubtitle(role) {
+  switch (role) {
+    case "TEACHER":
+      return "Learners, classrooms and competency assessment";
+
+    case "BURSAR":
+      return "School payments and financial records";
+
+    case "PLATFORM_ADMIN":
+      return "DARASA-AI platform management";
+
+    case "STUDENT":
+      return "Personal learning and competency progress";
+
+    case "PARENT":
+      return "Learner progress and school communication";
+
+    case "ADMIN":
+    default:
+      return "Darasa-AI Education Management Platform";
+  }
+}
+
+function getRoleLabel(role) {
+  switch (role) {
+    case "TEACHER":
+      return "Teacher";
+
+    case "BURSAR":
+      return "Bursar";
+
+    case "PLATFORM_ADMIN":
+      return "Platform Administrator";
+
+    case "STUDENT":
+      return "Student";
+
+    case "PARENT":
+      return "Parent";
+
+    case "ADMIN":
+    default:
+      return "School Administrator";
+  }
+}
+
+function getInitials(user) {
+  if (!user) {
+    return "U";
+  }
+
+  const firstName = user.first_name?.trim() || "";
+  const lastName = user.last_name?.trim() || "";
+
+  if (firstName && lastName) {
+    return `${firstName[0]}${lastName[0]}`.toUpperCase();
+  }
+
+  if (firstName) {
+    return firstName[0].toUpperCase();
+  }
+
+  if (user.username) {
+    return user.username[0].toUpperCase();
+  }
+
+  return "U";
+}
+
+function getDisplayName(user) {
+  if (!user) {
+    return "User";
+  }
+
+  const fullName = [
+    user.first_name,
+    user.last_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return fullName || user.username || "User";
+}
+
 function AppShell({ children }) {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const role = user?.role || "ADMIN";
+  const navigation = getNavigationForRole(role);
+  const portalTitle = getPortalTitle(role);
+  const portalSubtitle = getPortalSubtitle(role);
+  const roleLabel = getRoleLabel(role);
+  const displayName = getDisplayName(user);
+  const initials = getInitials(user);
+
   return (
     <div className="min-h-screen bg-[#F8F7F2]">
+
       {/* Mobile overlay */}
       {mobileMenuOpen && (
         <button
@@ -90,6 +273,7 @@ function AppShell({ children }) {
             : "-translate-x-full lg:translate-x-0",
         ].join(" ")}
       >
+
         {/* Brand */}
         <div className="flex h-20 items-center border-b border-[#E9E8E1] px-5">
           <div className="flex min-w-0 items-center gap-3">
@@ -120,6 +304,21 @@ function AppShell({ children }) {
           </button>
         </div>
 
+        {/* Current role */}
+        {!sidebarCollapsed && (
+          <div className="border-b border-[#E9E8E1] px-4 py-4">
+            <div className="rounded-xl bg-[#EAF3EE] px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#789087]">
+                Current workspace
+              </p>
+
+              <p className="mt-1 text-sm font-semibold text-[#0B5D43]">
+                {roleLabel}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
           {!sidebarCollapsed && (
@@ -135,7 +334,10 @@ function AppShell({ children }) {
               <NavLink
                 key={item.path}
                 to={item.path}
-                end={item.path === "/dashboard"}
+                end={
+                  item.path === "/dashboard" ||
+                  item.path === "/teacher-portal"
+                }
                 onClick={() => setMobileMenuOpen(false)}
                 title={sidebarCollapsed ? item.label : undefined}
                 className={({ isActive }) =>
@@ -159,7 +361,9 @@ function AppShell({ children }) {
                       }
                     />
 
-                    {!sidebarCollapsed && <span>{item.label}</span>}
+                    {!sidebarCollapsed && (
+                      <span>{item.label}</span>
+                    )}
 
                     {isActive && !sidebarCollapsed && (
                       <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#F1C54C]" />
@@ -209,10 +413,14 @@ function AppShell({ children }) {
         {/* Collapse button */}
         <button
           type="button"
-          onClick={() => setSidebarCollapsed((value) => !value)}
+          onClick={() =>
+            setSidebarCollapsed((value) => !value)
+          }
           className="absolute -right-3 top-24 hidden h-7 w-7 items-center justify-center rounded-full border border-[#DDE1DB] bg-white text-[#71807A] shadow-sm transition hover:border-[#0B5D43] hover:text-[#0B5D43] lg:flex"
           aria-label={
-            sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            sidebarCollapsed
+              ? "Expand sidebar"
+              : "Collapse sidebar"
           }
         >
           {sidebarCollapsed ? (
@@ -227,11 +435,15 @@ function AppShell({ children }) {
       <div
         className={[
           "min-h-screen transition-all duration-200",
-          sidebarCollapsed ? "lg:pl-[76px]" : "lg:pl-64",
+          sidebarCollapsed
+            ? "lg:pl-[76px]"
+            : "lg:pl-64",
         ].join(" ")}
       >
+
         {/* Header */}
         <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-[#E4E5DE] bg-[#FFFFFF]/95 px-4 backdrop-blur sm:px-6">
+
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -244,17 +456,18 @@ function AppShell({ children }) {
 
             <div>
               <p className="text-sm font-semibold text-[#17382E]">
-                School Administration
+                {portalTitle}
               </p>
 
               <p className="hidden text-xs text-[#8A9691] sm:block">
-                Darasa-AI Education Management Platform
+                {portalSubtitle}
               </p>
             </div>
           </div>
 
           {/* Header actions */}
           <div className="flex items-center gap-3">
+
             <NavLink
               to="/notifications"
               className="relative rounded-xl p-2.5 text-[#65736E] transition hover:bg-[#F1F3EE] hover:text-[#0B5D43]"
@@ -269,16 +482,16 @@ function AppShell({ children }) {
 
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-[#405650]">
-                Administrator
+                {displayName}
               </p>
 
               <p className="text-xs text-[#9AA49F]">
-                School account
+                {user?.school_name || roleLabel}
               </p>
             </div>
 
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43] ring-2 ring-[#F1C54C]/30">
-              A
+              {initials}
             </div>
           </div>
         </header>
