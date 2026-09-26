@@ -132,12 +132,17 @@ class MpesaService:
             ) from exc
 
         if response.status_code != 200:
-            response_body = response.text.strip()
-
             raise MpesaError(
                 "M-Pesa OAuth failed "
                 f"(HTTP {response.status_code}). "
-                f"Response: {response_body or 'empty response'}"
+                f"URL: {url}. "
+                f"Consumer key loaded: "
+                f"{bool(self.consumer_key)}. "
+                f"Consumer secret loaded: "
+                f"{bool(self.consumer_secret)}. "
+                f"Environment: {self.environment}. "
+                f"Response: "
+                f"{response.text.strip() or 'empty response'}"
             )
 
         try:
@@ -327,7 +332,8 @@ class MpesaService:
             raise MpesaError(
                 "M-Pesa STK Push failed "
                 f"(HTTP {response.status_code}). "
-                f"Response: {response_body or 'empty response'}"
+                f"Response: "
+                f"{response_body or 'empty response'}"
             )
 
         try:
