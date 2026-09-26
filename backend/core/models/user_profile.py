@@ -1,20 +1,42 @@
-from django.db import models
 from django.contrib.auth.models import User
+from django.db import models
 
 from .school import School
 
 
 class UserProfile(models.Model):
-    ROLE_ADMIN = "ADMIN"
-    ROLE_TEACHER = "TEACHER"
-    ROLE_BURSAR = "BURSAR"
-    ROLE_STUDENT = "STUDENT"
+    """
+    Extends Django's User model with DARASA-AI-specific
+    role and school information.
+    """
+
+    PLATFORM_ADMIN = "PLATFORM_ADMIN"
+    ADMIN = "ADMIN"
+    TEACHER = "TEACHER"
+    BURSAR = "BURSAR"
+    STUDENT = "STUDENT"
 
     ROLE_CHOICES = [
-        (ROLE_ADMIN, "Admin"),
-        (ROLE_TEACHER, "Teacher"),
-        (ROLE_BURSAR, "Bursar"),
-        (ROLE_STUDENT, "Student"),
+        (
+            PLATFORM_ADMIN,
+            "Platform Administrator",
+        ),
+        (
+            ADMIN,
+            "School Administrator",
+        ),
+        (
+            TEACHER,
+            "Teacher",
+        ),
+        (
+            BURSAR,
+            "Bursar",
+        ),
+        (
+            STUDENT,
+            "Student",
+        ),
     ]
 
     user = models.OneToOneField(
@@ -34,8 +56,11 @@ class UserProfile(models.Model):
     role = models.CharField(
         max_length=20,
         choices=ROLE_CHOICES,
-        default=ROLE_TEACHER,
+        default=TEACHER,
     )
 
     def __str__(self):
-        return f"{self.user.username} - {self.role}"
+        return (
+            f"{self.user.username} - "
+            f"{self.get_role_display()}"
+        )
