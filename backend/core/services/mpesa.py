@@ -1,5 +1,5 @@
-import base64
 from datetime import datetime
+from requests.auth import HTTPBasicAuth
 
 import requests
 from django.conf import settings
@@ -100,29 +100,21 @@ class MpesaService:
         url = (
             f"{self.base_url}"
             "/oauth/v1/generate"
-            "?grant_type=client_credentials"
         )
-
-        credentials = (
-            f"{self.consumer_key}:"
-            f"{self.consumer_secret}"
-        )
-
-        encoded_credentials = base64.b64encode(
-            credentials.encode("utf-8")
-        ).decode("utf-8")
-
-        headers = {
-            "Authorization": (
-                f"Basic {encoded_credentials}"
-            ),
-            "Accept": "application/json",
-        }
 
         try:
             response = requests.get(
                 url,
-                headers=headers,
+                params={
+                    "grant_type": "client_credentials",
+                },
+                auth=HTTPBasicAuth(
+                    self.consumer_key,
+                    self.consumer_secret,
+                ),
+                headers={
+                    "Accept": "application/json",
+                },
                 timeout=30,
             )
 
@@ -132,17 +124,13 @@ class MpesaService:
             ) from exc
 
         if response.status_code != 200:
+            response_body = response.text.strip()
+
             raise MpesaError(
                 "M-Pesa OAuth failed "
                 f"(HTTP {response.status_code}). "
-                f"URL: {url}. "
-                f"Consumer key loaded: "
-                f"{bool(self.consumer_key)}. "
-                f"Consumer secret loaded: "
-                f"{bool(self.consumer_secret)}. "
-                f"Environment: {self.environment}. "
                 f"Response: "
-                f"{response.text.strip() or 'empty response'}"
+                f"{response_body or 'empty response'}"
             )
 
         try:
@@ -176,6 +164,8 @@ class MpesaService:
             f"{self.passkey}"
             f"{timestamp}"
         )
+
+        import base64
 
         return base64.b64encode(
             raw.encode("utf-8")
