@@ -1,10 +1,13 @@
 from django.contrib.auth import get_user_model
 
+from rest_framework import permissions, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework import viewsets
+from rest_framework.response import Response
 
 from ..permissions import IsSchoolAdmin
 from ..serializers import UserAccountSerializer
+from ..serializers.user_profile import CurrentUserSerializer
 
 
 User = get_user_model()
@@ -18,6 +21,9 @@ class UserAccountViewSet(viewsets.ModelViewSet):
     their own school.
 
     Superusers have global access.
+
+    The /me/ endpoint is available to every authenticated
+    user and returns their portal role and school context.
     """
 
     queryset = User.objects.all().select_related(
@@ -70,3 +76,24 @@ class UserAccountViewSet(viewsets.ModelViewSet):
             )
 
         instance.delete()
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="me",
+        permission_classes=[
+            permissions.IsAuthenticated,
+        ],
+    )
+    def me(self, request):
+        """
+        Return the authenticated user's portal context.
+        """
+
+        serializer = CurrentUserSerializer(
+            request.user
+        )
+
+        return Response(
+            serializer.data
+        )
