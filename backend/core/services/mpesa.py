@@ -12,8 +12,6 @@ class MpesaError(Exception):
 class MpesaService:
     """
     Service for communicating with Safaricom Daraja APIs.
-
-    Credentials and configuration are loaded from Django settings.
     """
 
     def __init__(self):
@@ -21,31 +19,31 @@ class MpesaService:
             settings,
             "MPESA_CONSUMER_KEY",
             "",
-        )
+        ).strip()
 
         self.consumer_secret = getattr(
             settings,
             "MPESA_CONSUMER_SECRET",
             "",
-        )
+        ).strip()
 
         self.shortcode = getattr(
             settings,
             "MPESA_SHORTCODE",
             "",
-        )
+        ).strip()
 
         self.passkey = getattr(
             settings,
             "MPESA_PASSKEY",
             "",
-        )
+        ).strip()
 
         self.callback_url = getattr(
             settings,
             "MPESA_CALLBACK_URL",
             "",
-        )
+        ).strip()
 
         self.environment = getattr(
             settings,
@@ -55,11 +53,11 @@ class MpesaService:
 
         if self.environment == "production":
             self.base_url = (
-                "https://api.safaricom.co.ke/"
+                "https://api.safaricom.co.ke"
             )
         else:
             self.base_url = (
-                "https://sandbox.safaricom.co.ke/"
+                "https://sandbox.safaricom.co.ke"
             )
 
     def _validate_configuration(self):
@@ -94,10 +92,16 @@ class MpesaService:
 
     def get_access_token(self):
         """
-        Request an OAuth access token from Daraja.
+        Generate a Daraja OAuth access token.
         """
 
         self._validate_configuration()
+
+        url = (
+            f"{self.base_url}"
+            "/oauth/v1/generate"
+            "?grant_type=client_credentials"
+        )
 
         credentials = (
             f"{self.consumer_key}:"
@@ -108,34 +112,32 @@ class MpesaService:
             credentials.encode("utf-8")
         ).decode("utf-8")
 
-        url = (
-            f"{self.base_url}"
-            "oauth/v1/generate"
-            "?grant_type=client_credentials"
-        )
+        headers = {
+            "Authorization": (
+                f"Basic {encoded_credentials}"
+            ),
+            "Accept": "application/json",
+        }
 
         try:
             response = requests.get(
                 url,
-                headers={
-                    "Authorization": (
-                        f"Basic {encoded_credentials}"
-                    ),
-                    "Accept": "application/json",
-                },
+                headers=headers,
                 timeout=30,
             )
 
         except requests.RequestException as exc:
             raise MpesaError(
-                "Unable to connect to M-Pesa."
+                "Unable to connect to M-Pesa OAuth service."
             ) from exc
 
-        if not response.ok:
+        if response.status_code != 200:
+            response_body = response.text.strip()
+
             raise MpesaError(
                 "M-Pesa OAuth failed "
-                f"(HTTP {response.status_code}): "
-                f"{response.text[:500]}"
+                f"(HTTP {response.status_code}). "
+                f"Response: {response_body or 'empty response'}"
             )
 
         try:
@@ -143,7 +145,7 @@ class MpesaService:
 
         except ValueError as exc:
             raise MpesaError(
-                "M-Pesa returned an invalid OAuth response: "
+                "M-Pesa OAuth returned invalid JSON: "
                 f"{response.text[:500]}"
             ) from exc
 
@@ -154,15 +156,14 @@ class MpesaService:
         if not access_token:
             raise MpesaError(
                 "M-Pesa OAuth response did not "
-                "contain an access token: "
-                f"{response.text[:500]}"
+                "contain an access token."
             )
 
         return access_token
 
     def _generate_password(self, timestamp):
         """
-        Generate the Daraja STK password.
+        Generate the Base64 encoded STK Push password.
         """
 
         raw = (
@@ -175,10 +176,13 @@ class MpesaService:
             raw.encode("utf-8")
         ).decode("utf-8")
 
-    def _normalize_phone_number(self, phone_number):
+    def _normalize_phone_number(
+        self,
+        phone_number,
+    ):
         """
-        Convert common Kenyan phone formats to
-        the Daraja format: 2547XXXXXXXX.
+        Convert Kenyan phone numbers to:
+        2547XXXXXXXX
         """
 
         phone = str(phone_number).strip()
@@ -186,13 +190,19 @@ class MpesaService:
         phone = (
             phone.replace(" ", "")
             .replace("-", "")
-            .replace("+", "")
         )
 
-        if phone.startswith("07") or phone.startswith("01"):
+        if phone.startswith("+254"):
+            phone = phone[1:]
+
+        elif phone.startswith("07") or phone.startswith(
+            "01"
+        ):
             phone = "254" + phone[1:]
 
-        elif phone.startswith("7") or phone.startswith("1"):
+        elif phone.startswith("7") or phone.startswith(
+            "1"
+        ):
             phone = "254" + phone
 
         if not phone.isdigit():
@@ -200,8 +210,9 @@ class MpesaService:
                 "Invalid M-Pesa phone number."
             )
 
-        if len(phone) != 12 or not phone.startswith(
-            "254"
+        if (
+            len(phone) != 12
+            or not phone.startswith("254")
         ):
             raise MpesaError(
                 "M-Pesa phone number must be a valid "
@@ -219,8 +230,6 @@ class MpesaService:
     ):
         """
         Initiate an M-Pesa STK Push request.
-
-        Returns the Daraja response as a dictionary.
         """
 
         self._validate_configuration()
@@ -231,6 +240,7 @@ class MpesaService:
 
         try:
             amount = int(amount)
+
         except (TypeError, ValueError) as exc:
             raise MpesaError(
                 "Payment amount must be a valid number."
@@ -271,7 +281,7 @@ class MpesaService:
 
         url = (
             f"{self.base_url}"
-            "mpesa/stkpush/v1/processrequest"
+            "/mpesa/stkpush/v1/processrequest"
         )
 
         payload = {
@@ -312,10 +322,12 @@ class MpesaService:
             ) from exc
 
         if not response.ok:
+            response_body = response.text.strip()
+
             raise MpesaError(
                 "M-Pesa STK Push failed "
-                f"(HTTP {response.status_code}): "
-                f"{response.text[:500]}"
+                f"(HTTP {response.status_code}). "
+                f"Response: {response_body or 'empty response'}"
             )
 
         try:
@@ -323,7 +335,7 @@ class MpesaService:
 
         except ValueError as exc:
             raise MpesaError(
-                "M-Pesa returned an invalid STK response: "
+                "M-Pesa returned invalid STK response: "
                 f"{response.text[:500]}"
             ) from exc
 
