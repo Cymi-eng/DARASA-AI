@@ -77,7 +77,7 @@ class FeePaymentViewSet(SchoolScopedViewSet):
                 account_reference=(
                     payment.student.admission_number
                 ),
-                transaction_desc="School fee payment",
+                transaction_desc="School fee",
             )
 
         except MpesaError as exc:
@@ -94,6 +94,28 @@ class FeePaymentViewSet(SchoolScopedViewSet):
             raise ValidationError(
                 {
                     "mpesa": str(exc)
+                }
+            )
+
+        except Exception:
+            payment.status = "FAILED"
+            payment.failure_reason = (
+                "Unexpected M-Pesa error."
+            )
+            payment.save(
+                update_fields=[
+                    "status",
+                    "failure_reason",
+                    "updated_at",
+                ]
+            )
+
+            raise ValidationError(
+                {
+                    "mpesa": (
+                        "Payment initiation failed. "
+                        "Please try again."
+                    )
                 }
             )
 
