@@ -2,27 +2,53 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
-  Clock3,
   CreditCard,
+  DollarSign,
   Loader2,
+  Phone,
+  Plus,
+  Receipt,
   RefreshCw,
   Search,
-  TrendingUp,
-  XCircle,
+  User,
+  X,
 } from "lucide-react";
 
 import api from "../api";
 
 function getResults(data) {
-  if (Array.isArray(data)) {
-    return data;
+  return Array.isArray(data) ? data : data?.results || [];
+}
+
+function getStudentName(student) {
+  if (!student) {
+    return "Unknown student";
   }
 
-  if (Array.isArray(data?.results)) {
-    return data.results;
+  if (typeof student === "object") {
+    return (
+      `${student.first_name || ""} ${student.last_name || ""}`.trim() ||
+      "Unknown student"
+    );
   }
 
-  return [];
+  return `Student #${student}`;
+}
+
+function getStudentById(studentId, students) {
+  if (!studentId) {
+    return null;
+  }
+
+  if (typeof studentId === "object") {
+    return studentId;
+  }
+
+  return (
+    students.find(
+      (student) => String(student.id) === String(studentId)
+    ) || null
+  );
 }
 
 function formatCurrency(value) {
@@ -31,7 +57,7 @@ function formatCurrency(value) {
   return new Intl.NumberFormat("en-KE", {
     style: "currency",
     currency: "KES",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
   }).format(amount);
 }
 
@@ -53,476 +79,576 @@ function formatDate(value) {
   });
 }
 
-function getStudentName(student, students) {
-  if (!student) {
-    return "Unknown student";
+function getStatusClasses(status) {
+  if (status === "CONFIRMED") {
+    return "bg-[#EAF3EE] text-[#0B5D43]";
   }
 
-  if (typeof student === "object") {
-    return (
-      `${student.first_name || ""} ${student.last_name || ""}`.trim() ||
-      student.admission_number ||
-      "Unknown student"
-    );
+  if (status === "PENDING") {
+    return "bg-[#FFF7E4] text-[#9A7600]";
   }
 
-  const found = students.find(
-    (item) => String(item.id) === String(student)
-  );
-
-  if (!found) {
-    return `Student #${student}`;
+  if (status === "FAILED") {
+    return "bg-[#FFF0EE] text-[#B33A31]";
   }
 
-  return (
-    `${found.first_name || ""} ${found.last_name || ""}`.trim() ||
-    found.admission_number ||
-    `Student #${student}`
-  );
+  return "bg-[#F1F3EE] text-[#52645D]";
 }
 
-function getStudentAdmission(student, students) {
-  if (!student) {
-    return "—";
+function extractErrorMessage(error, fallback) {
+  const data = error?.response?.data;
+
+  if (!data) {
+    return fallback;
   }
 
-  if (typeof student === "object") {
-    return student.admission_number || "—";
+  if (typeof data === "string") {
+    return data;
   }
 
-  const found = students.find(
-    (item) => String(item.id) === String(student)
-  );
+  if (data.detail) {
+    return data.detail;
+  }
 
-  return found?.admission_number || "—";
+  const messages = Object.entries(data).flatMap(([field, value]) => {
+    if (Array.isArray(value)) {
+      return value.map((message) => `${field}: ${message}`);
+    }
+
+    if (typeof value === "string") {
+      return [`${field}: ${value}`];
+    }
+
+    return [];
+  });
+
+  return messages.length > 0 ? messages.join(" ") : fallback;
 }
 
-function getPaymentStatus(payment) {
-  return String(payment?.status || "PENDING").toUpperCase();
-}
+const EMPTY_PAYMENT_FORM = {
+  student: "",
+  amount: "",
+  phone_number: "",
+};
 
-function StatusBadge({ status }) {
-  const styles = {
-    CONFIRMED:
-      "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    PENDING:
-      "bg-amber-50 text-amber-700 border border-amber-200",
-    FAILED:
-      "bg-red-50 text-red-700 border border-red-200",
-  };
-
-  const icons = {
-    CONFIRMED: CheckCircle2,
-    PENDING: Clock3,
-    FAILED: XCircle,
-  };
-
-  const Icon = icons[status] || AlertCircle;
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-        styles[status] ||
-        "bg-slate-50 text-slate-600 border border-slate-200"
-      }`}
-    >
-      <Icon size={13} />
-      {status}
-    </span>
-  );
-}
-
-function StatCard({ title, value, subtitle, icon: Icon, iconClass }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-            {value}
-          </p>
-          {subtitle && (
-            <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
-          )}
-        </div>
-
-        <div
-          className={`flex h-11 w-11 items-center justify-center rounded-xl ${iconClass}`}
-        >
-          <Icon size={21} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function Finance() {
+function Finance() {
   const [payments, setPayments] = useState([]);
   const [students, setStudents] = useState([]);
   const [ledgerEntries, setLedgerEntries] = useState([]);
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
   const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const loadFinance = async (showRefresh = false) => {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+
+  const [paymentForm, setPaymentForm] = useState(
+    EMPTY_PAYMENT_FORM
+  );
+
+  async function loadFinanceData() {
+    setLoading(true);
+    setError("");
+
     try {
-      setError("");
-
-      if (showRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
-      const [paymentsResponse, studentsResponse, ledgerResponse] =
-        await Promise.all([
-          api.get("/fee-payments/?page_size=100"),
-          api.get("/students/?page_size=100"),
-          api.get("/fee-ledger/?page_size=100"),
-        ]);
+      const [
+        paymentsResponse,
+        studentsResponse,
+        ledgerResponse,
+      ] = await Promise.all([
+        api.get("/fee-payments/", {
+          params: {
+            page_size: 100,
+          },
+        }),
+        api.get("/students/", {
+          params: {
+            page_size: 100,
+          },
+        }),
+        api.get("/fee-ledger/", {
+          params: {
+            page_size: 100,
+          },
+        }),
+      ]);
 
       setPayments(getResults(paymentsResponse.data));
       setStudents(getResults(studentsResponse.data));
       setLedgerEntries(getResults(ledgerResponse.data));
-    } catch (err) {
-      console.error("Failed to load finance data:", err);
-
+    } catch (requestError) {
       setError(
-        err?.response?.data?.detail ||
-          "Unable to load finance data. Please try again."
+        extractErrorMessage(
+          requestError,
+          "Unable to load finance data."
+        )
       );
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  };
+  }
 
   useEffect(() => {
-    loadFinance();
+    loadFinanceData();
   }, []);
 
   const filteredPayments = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return payments.filter((payment) => {
-      const status = getPaymentStatus(payment);
-
-      if (statusFilter !== "ALL" && status !== statusFilter) {
-        return false;
-      }
-
-      if (!query) {
-        return true;
-      }
-
-      const studentName = getStudentName(payment.student, students);
-      const admissionNumber = getStudentAdmission(
+      const student = getStudentById(
         payment.student,
         students
       );
 
-      const searchableText = [
-        studentName,
-        admissionNumber,
-        payment.transaction_id,
-        payment.mpesa_receipt_number,
-        payment.phone_number,
-        payment.checkout_request_id,
-        payment.merchant_request_id,
-        status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+      const studentName = getStudentName(student);
+      const admissionNumber =
+        student?.admission_number || "";
 
-      return searchableText.includes(query);
+      const matchesSearch =
+        !query ||
+        studentName.toLowerCase().includes(query) ||
+        admissionNumber.toLowerCase().includes(query) ||
+        String(
+          payment.mpesa_receipt_number || ""
+        )
+          .toLowerCase()
+          .includes(query) ||
+        String(payment.transaction_id || "")
+          .toLowerCase()
+          .includes(query) ||
+        String(payment.phone_number || "")
+          .toLowerCase()
+          .includes(query);
+
+      const matchesStatus =
+        !statusFilter ||
+        payment.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
     });
   }, [payments, students, search, statusFilter]);
 
   const summary = useMemo(() => {
     const confirmed = payments.filter(
-      (payment) => getPaymentStatus(payment) === "CONFIRMED"
+      (payment) => payment.status === "CONFIRMED"
     );
 
     const pending = payments.filter(
-      (payment) => getPaymentStatus(payment) === "PENDING"
+      (payment) => payment.status === "PENDING"
     );
 
     const failed = payments.filter(
-      (payment) => getPaymentStatus(payment) === "FAILED"
+      (payment) => payment.status === "FAILED"
     );
 
     const totalCollected = confirmed.reduce(
-      (total, payment) => total + Number(payment.amount || 0),
-      0
-    );
-
-    const pendingAmount = pending.reduce(
-      (total, payment) => total + Number(payment.amount || 0),
-      0
-    );
-
-    const failedAmount = failed.reduce(
-      (total, payment) => total + Number(payment.amount || 0),
+      (total, payment) =>
+        total + Number(payment.amount || 0),
       0
     );
 
     return {
-      confirmedCount: confirmed.length,
+      totalCollected,
       pendingCount: pending.length,
       failedCount: failed.length,
-      totalCollected,
-      pendingAmount,
-      failedAmount,
+      transactionCount: payments.length,
     };
   }, [payments]);
 
-  const recentLedger = useMemo(() => {
-    return [...ledgerEntries]
-      .sort((a, b) => {
-        const first = new Date(
-          a.created_at || a.entry_date || 0
-        ).getTime();
+  function updatePaymentField(field, value) {
+    setPaymentForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
 
-        const second = new Date(
-          b.created_at || b.entry_date || 0
-        ).getTime();
+  function openPaymentForm() {
+    setPaymentForm(EMPTY_PAYMENT_FORM);
+    setFormError("");
+    setSuccessMessage("");
+    setShowPaymentForm(true);
+  }
 
-        return second - first;
-      })
-      .slice(0, 8);
-  }, [ledgerEntries]);
+  function closePaymentForm() {
+    if (submitting) {
+      return;
+    }
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="flex items-center gap-3 text-slate-500">
-          <Loader2 className="animate-spin" size={22} />
-          <span>Loading finance data...</span>
-        </div>
-      </div>
-    );
+    setShowPaymentForm(false);
+    setPaymentForm(EMPTY_PAYMENT_FORM);
+    setFormError("");
+  }
+
+  async function handlePaymentSubmit(event) {
+    event.preventDefault();
+
+    setSubmitting(true);
+    setFormError("");
+    setSuccessMessage("");
+
+    try {
+      if (!paymentForm.student) {
+        throw new Error("Please select a student.");
+      }
+
+      if (!paymentForm.amount) {
+        throw new Error("Please enter the payment amount.");
+      }
+
+      if (Number(paymentForm.amount) <= 0) {
+        throw new Error(
+          "Payment amount must be greater than zero."
+        );
+      }
+
+      if (!paymentForm.phone_number.trim()) {
+        throw new Error(
+          "Please enter the M-Pesa phone number."
+        );
+      }
+
+      const response = await api.post("/fee-payments/", {
+        student: Number(paymentForm.student),
+        amount: Number(paymentForm.amount),
+        phone_number: paymentForm.phone_number.trim(),
+      });
+
+      const message =
+        response.data?.message ||
+        response.data?.detail ||
+        "Payment request sent successfully.";
+
+      setSuccessMessage(message);
+      setShowPaymentForm(false);
+      setPaymentForm(EMPTY_PAYMENT_FORM);
+
+      await loadFinanceData();
+    } catch (requestError) {
+      setFormError(
+        requestError instanceof Error &&
+          !requestError.response
+          ? requestError.message
+          : extractErrorMessage(
+              requestError,
+              "Unable to initiate payment."
+            )
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* HEADER */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0B5D43]">
             Finance
           </p>
 
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="mt-2 text-2xl font-bold text-[#17382E]">
             School Finance
           </h1>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Monitor fee collections, M-Pesa payments and the school ledger.
+          <p className="mt-1 text-sm text-[#7C8984]">
+            Manage fee payments and financial activity.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => loadFinance(true)}
-          disabled={refreshing}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <RefreshCw
-            size={17}
-            className={refreshing ? "animate-spin" : ""}
-          />
-          Refresh
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={loadFinanceData}
+            disabled={loading}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm font-semibold text-[#405650] transition hover:bg-[#F7F8F4] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw
+              size={17}
+              className={loading ? "animate-spin" : ""}
+            />
+            Refresh
+          </button>
+
+          <button
+            type="button"
+            onClick={openPaymentForm}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#084A36]"
+          >
+            <Plus size={18} />
+            Make Payment
+          </button>
+        </div>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 shrink-0" size={18} />
-          <div>
-            <p className="font-semibold">Finance data could not be loaded</p>
-            <p className="mt-1">{error}</p>
-          </div>
+      {/* SUCCESS */}
+      {successMessage && (
+        <div className="flex items-start gap-3 rounded-xl border border-[#CFE4D8] bg-[#F0F8F3] p-4 text-sm text-[#0B5D43]">
+          <CheckCircle2
+            size={19}
+            className="mt-0.5 shrink-0"
+          />
+
+          <p>{successMessage}</p>
         </div>
       )}
 
-      {/* Summary */}
+      {/* ERROR */}
+      {error && (
+        <div className="flex items-start gap-3 rounded-xl border border-[#F0D2CE] bg-[#FFF5F3] p-4 text-sm text-[#B33A31]">
+          <AlertCircle
+            size={19}
+            className="mt-0.5 shrink-0"
+          />
+
+          <p>{error}</p>
+        </div>
+      )}
+
+      {/* SUMMARY */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Total Collected"
-          value={formatCurrency(summary.totalCollected)}
-          subtitle={`${summary.confirmedCount} confirmed payments`}
-          icon={TrendingUp}
-          iconClass="bg-emerald-50 text-emerald-600"
-        />
+        <div className="rounded-2xl border border-[#E4E5DE] bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
+              <DollarSign size={21} />
+            </div>
 
-        <StatCard
-          title="Pending"
-          value={formatCurrency(summary.pendingAmount)}
-          subtitle={`${summary.pendingCount} pending payments`}
-          icon={Clock3}
-          iconClass="bg-amber-50 text-amber-600"
-        />
+            <span className="text-2xl font-bold text-[#17382E]">
+              {formatCurrency(summary.totalCollected)}
+            </span>
+          </div>
 
-        <StatCard
-          title="Failed"
-          value={formatCurrency(summary.failedAmount)}
-          subtitle={`${summary.failedCount} failed payments`}
-          icon={XCircle}
-          iconClass="bg-red-50 text-red-600"
-        />
+          <p className="mt-5 text-sm font-semibold text-[#405650]">
+            Total Collected
+          </p>
 
-        <StatCard
-          title="Transactions"
-          value={payments.length}
-          subtitle={`${ledgerEntries.length} ledger entries`}
-          icon={CreditCard}
-          iconClass="bg-blue-50 text-blue-600"
-        />
+          <p className="mt-1 text-xs text-[#8A9691]">
+            Confirmed payments
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-[#E4E5DE] bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF7E4] text-[#9A7600]">
+              <Receipt size={21} />
+            </div>
+
+            <span className="text-2xl font-bold text-[#17382E]">
+              {summary.pendingCount}
+            </span>
+          </div>
+
+          <p className="mt-5 text-sm font-semibold text-[#405650]">
+            Pending Payments
+          </p>
+
+          <p className="mt-1 text-xs text-[#8A9691]">
+            Awaiting confirmation
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-[#E4E5DE] bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF0EE] text-[#B33A31]">
+              <AlertCircle size={21} />
+            </div>
+
+            <span className="text-2xl font-bold text-[#17382E]">
+              {summary.failedCount}
+            </span>
+          </div>
+
+          <p className="mt-5 text-sm font-semibold text-[#405650]">
+            Failed Payments
+          </p>
+
+          <p className="mt-1 text-xs text-[#8A9691]">
+            Payment attempts failed
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-[#E4E5DE] bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F3F4EF] text-[#0B5D43]">
+              <CreditCard size={21} />
+            </div>
+
+            <span className="text-2xl font-bold text-[#17382E]">
+              {summary.transactionCount}
+            </span>
+          </div>
+
+          <p className="mt-5 text-sm font-semibold text-[#405650]">
+            Transactions
+          </p>
+
+          <p className="mt-1 text-xs text-[#8A9691]">
+            All recorded payments
+          </p>
+        </div>
       </div>
 
-      {/* Payments */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Fee Payments
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                M-Pesa and fee payment transactions for your school.
-              </p>
-            </div>
+      {/* PAYMENTS */}
+      <div className="rounded-2xl border border-[#E4E5DE] bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-[#ECEDE8] p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-base font-bold text-[#17382E]">
+              Payment Transactions
+            </h2>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="relative">
-                <Search
-                  size={17}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
+            <p className="mt-1 text-xs text-[#8A9691]">
+              M-Pesa and school fee payment records.
+            </p>
+          </div>
 
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search student or transaction..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100 sm:w-72"
-                />
-              </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative">
+              <Search
+                size={17}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A9691]"
+              />
 
-              <select
-                value={statusFilter}
+              <input
+                type="search"
+                value={search}
                 onChange={(event) =>
-                  setStatusFilter(event.target.value)
+                  setSearch(event.target.value)
                 }
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-              >
-                <option value="ALL">All statuses</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="PENDING">Pending</option>
-                <option value="FAILED">Failed</option>
-              </select>
+                placeholder="Search payments..."
+                className="h-11 w-full rounded-xl border border-[#DDE1DB] bg-white pl-10 pr-4 text-sm text-[#405650] outline-none focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 sm:w-64"
+              />
             </div>
+
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value)
+              }
+              className="h-11 rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+            >
+              <option value="">All statuses</option>
+              <option value="CONFIRMED">Confirmed</option>
+              <option value="PENDING">Pending</option>
+              <option value="FAILED">Failed</option>
+            </select>
           </div>
         </div>
 
-        {filteredPayments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-              <CreditCard size={25} />
-            </div>
+        {loading ? (
+          <div className="flex min-h-60 items-center justify-center">
+            <Loader2
+              size={28}
+              className="animate-spin text-[#0B5D43]"
+            />
+          </div>
+        ) : filteredPayments.length === 0 ? (
+          <div className="flex min-h-60 flex-col items-center justify-center px-6 text-center">
+            <Receipt
+              size={35}
+              className="text-[#A0AAA5]"
+            />
 
-            <h3 className="mt-4 text-base font-semibold text-slate-900">
-              No payments found
-            </h3>
+            <p className="mt-3 text-sm font-semibold text-[#405650]">
+              No payment records found
+            </p>
 
-            <p className="mt-1 max-w-md text-sm text-slate-500">
-              Try changing your search or status filter.
+            <p className="mt-1 text-xs text-[#8A9691]">
+              Try another search or make a new payment.
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[900px] w-full">
+            <table className="w-full min-w-[900px]">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-[#ECEDE8] bg-[#FAFAF7] text-left">
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.08em] text-[#8A9691]">
                     Student
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.08em] text-[#8A9691]">
                     Amount
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    M-Pesa Receipt
+
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.08em] text-[#8A9691]">
+                    M-Pesa
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.08em] text-[#8A9691]">
                     Phone
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.08em] text-[#8A9691]">
                     Status
                   </th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.08em] text-[#8A9691]">
                     Date
                   </th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[#EEF0EB]">
                 {filteredPayments.map((payment) => {
-                  const status = getPaymentStatus(payment);
+                  const student = getStudentById(
+                    payment.student,
+                    students
+                  );
 
                   return (
                     <tr
                       key={payment.id}
-                      className="transition hover:bg-slate-50"
+                      className="transition hover:bg-[#FCFCF9]"
                     >
-                      <td className="px-5 py-4">
-                        <div>
-                          <p className="font-semibold text-slate-900">
-                            {getStudentName(
-                              payment.student,
-                              students
-                            )}
-                          </p>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-semibold text-[#17382E]">
+                          {getStudentName(student)}
+                        </p>
 
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {getStudentAdmission(
-                              payment.student,
-                              students
-                            )}
-                          </p>
-                        </div>
+                        <p className="mt-1 text-xs text-[#8A9691]">
+                          {student?.admission_number ||
+                            "No admission number"}
+                        </p>
                       </td>
 
-                      <td className="px-5 py-4">
-                        <span className="font-semibold text-slate-900">
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-bold text-[#17382E]">
                           {formatCurrency(payment.amount)}
                         </span>
                       </td>
 
-                      <td className="px-5 py-4">
-                        <span className="font-mono text-sm text-slate-700">
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-medium text-[#405650]">
                           {payment.mpesa_receipt_number ||
                             payment.transaction_id ||
-                            "—"}
-                        </span>
+                            "Pending"}
+                        </p>
                       </td>
 
-                      <td className="px-5 py-4 text-sm text-slate-600">
+                      <td className="px-6 py-4 text-sm text-[#52645D]">
                         {payment.phone_number || "—"}
                       </td>
 
-                      <td className="px-5 py-4">
-                        <StatusBadge status={status} />
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1.5 text-xs font-semibold ${getStatusClasses(
+                            payment.status
+                          )}`}
+                        >
+                          {payment.status || "UNKNOWN"}
+                        </span>
                       </td>
 
-                      <td className="px-5 py-4 text-sm text-slate-600">
+                      <td className="px-6 py-4 text-sm text-[#52645D]">
                         {formatDate(
-                          payment.paid_at || payment.created_at
+                          payment.paid_at ||
+                            payment.created_at
                         )}
                       </td>
                     </tr>
@@ -532,75 +658,268 @@ export default function Finance() {
             </table>
           </div>
         )}
+      </div>
 
-        <div className="border-t border-slate-200 px-5 py-3">
-          <p className="text-xs text-slate-500">
-            Showing {filteredPayments.length} of {payments.length} payments
-          </p>
-        </div>
-      </section>
-
-      {/* Ledger */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-5">
-          <h2 className="text-lg font-bold text-slate-900">
+      {/* LEDGER */}
+      <div className="rounded-2xl border border-[#E4E5DE] bg-white shadow-sm">
+        <div className="border-b border-[#ECEDE8] p-5">
+          <h2 className="text-base font-bold text-[#17382E]">
             Recent Ledger Activity
           </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Recent financial entries recorded against student accounts.
+          <p className="mt-1 text-xs text-[#8A9691]">
+            Recorded financial movements.
           </p>
         </div>
 
-        {recentLedger.length === 0 ? (
-          <div className="px-5 py-12 text-center text-sm text-slate-500">
-            No ledger entries available.
+        {ledgerEntries.length === 0 ? (
+          <div className="p-8 text-center text-sm text-[#8A9691]">
+            No ledger entries found.
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
-            {recentLedger.map((entry) => {
-              const student = entry.student;
+          <div className="divide-y divide-[#EEF0EB]">
+            {ledgerEntries.slice(0, 10).map((entry) => {
+              const student = getStudentById(
+                entry.student,
+                students
+              );
 
               return (
                 <div
                   key={entry.id}
-                  className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-slate-900">
-                        {getStudentName(student, students)}
-                      </p>
-
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase text-slate-600">
-                        {entry.entry_type || "ENTRY"}
-                      </span>
-                    </div>
-
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="text-sm font-semibold text-[#17382E]">
                       {entry.description ||
-                        entry.reference ||
-                        "Financial ledger entry"}
+                        entry.entry_type ||
+                        "Ledger entry"}
+                    </p>
+
+                    <p className="mt-1 text-xs text-[#8A9691]">
+                      {getStudentName(student)}
+                      {entry.reference
+                        ? ` • ${entry.reference}`
+                        : ""}
                     </p>
                   </div>
 
-                  <div className="text-left sm:text-right">
-                    <p className="font-semibold text-slate-900">
-                      {formatCurrency(entry.amount)}
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      {formatDate(
-                        entry.created_at || entry.entry_date
-                      )}
-                    </p>
-                  </div>
+                  <span className="text-sm font-bold text-[#0B5D43]">
+                    {formatCurrency(entry.amount)}
+                  </span>
                 </div>
               );
             })}
           </div>
         )}
-      </section>
+      </div>
+
+      {/* PAYMENT MODAL */}
+      {showPaymentForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#17382E]/45 p-4">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#ECEDE8] p-5">
+              <div>
+                <h2 className="text-lg font-bold text-[#17382E]">
+                  Make M-Pesa Payment
+                </h2>
+
+                <p className="mt-1 text-xs text-[#8A9691]">
+                  Enter the payment details to initiate an STK
+                  Push.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closePaymentForm}
+                disabled={submitting}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-[#7C8984] transition hover:bg-[#F3F4EF] hover:text-[#17382E] disabled:opacity-50"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handlePaymentSubmit}
+              className="space-y-5 p-5"
+            >
+              {formError && (
+                <div className="flex items-start gap-3 rounded-xl border border-[#F0D2CE] bg-[#FFF5F3] p-4 text-sm text-[#B33A31]">
+                  <AlertCircle
+                    size={18}
+                    className="mt-0.5 shrink-0"
+                  />
+
+                  <p>{formError}</p>
+                </div>
+              )}
+
+              {/* STUDENT */}
+              <div>
+                <label
+                  htmlFor="payment_student"
+                  className="mb-2 block text-sm font-semibold text-[#405650]"
+                >
+                  Student
+                  <span className="ml-1 text-[#B33A31]">
+                    *
+                  </span>
+                </label>
+
+                <div className="relative">
+                  <User
+                    size={17}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A9691]"
+                  />
+
+                  <select
+                    id="payment_student"
+                    value={paymentForm.student}
+                    onChange={(event) =>
+                      updatePaymentField(
+                        "student",
+                        event.target.value
+                      )
+                    }
+                    disabled={submitting}
+                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white pl-10 pr-4 text-sm text-[#405650] outline-none focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 disabled:bg-[#F4F5F1]"
+                  >
+                    <option value="">
+                      Select student
+                    </option>
+
+                    {students.map((student) => (
+                      <option
+                        key={student.id}
+                        value={student.id}
+                      >
+                        {getStudentName(student)}
+                        {student.admission_number
+                          ? ` — ${student.admission_number}`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* AMOUNT */}
+              <div>
+                <label
+                  htmlFor="payment_amount"
+                  className="mb-2 block text-sm font-semibold text-[#405650]"
+                >
+                  Amount (KES)
+                  <span className="ml-1 text-[#B33A31]">
+                    *
+                  </span>
+                </label>
+
+                <div className="relative">
+                  <DollarSign
+                    size={17}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A9691]"
+                  />
+
+                  <input
+                    id="payment_amount"
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    value={paymentForm.amount}
+                    onChange={(event) =>
+                      updatePaymentField(
+                        "amount",
+                        event.target.value
+                      )
+                    }
+                    disabled={submitting}
+                    placeholder="e.g. 100"
+                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white pl-10 pr-4 text-sm text-[#405650] outline-none placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 disabled:bg-[#F4F5F1]"
+                  />
+                </div>
+              </div>
+
+              {/* PHONE */}
+              <div>
+                <label
+                  htmlFor="payment_phone"
+                  className="mb-2 block text-sm font-semibold text-[#405650]"
+                >
+                  M-Pesa Phone Number
+                  <span className="ml-1 text-[#B33A31]">
+                    *
+                  </span>
+                </label>
+
+                <div className="relative">
+                  <Phone
+                    size={17}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A9691]"
+                  />
+
+                  <input
+                    id="payment_phone"
+                    type="tel"
+                    value={paymentForm.phone_number}
+                    onChange={(event) =>
+                      updatePaymentField(
+                        "phone_number",
+                        event.target.value
+                      )
+                    }
+                    disabled={submitting}
+                    placeholder="e.g. 0712345678"
+                    autoComplete="tel"
+                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white pl-10 pr-4 text-sm text-[#405650] outline-none placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 disabled:bg-[#F4F5F1]"
+                  />
+                </div>
+
+                <p className="mt-2 text-xs text-[#8A9691]">
+                  This number will receive the M-Pesa STK
+                  prompt.
+                </p>
+              </div>
+
+              {/* ACTIONS */}
+              <div className="flex flex-col-reverse gap-3 border-t border-[#ECEDE8] pt-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closePaymentForm}
+                  disabled={submitting}
+                  className="h-11 rounded-xl border border-[#DDE1DB] px-5 text-sm font-semibold text-[#405650] transition hover:bg-[#F7F8F4] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-6 text-sm font-semibold text-white transition hover:bg-[#084A36] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2
+                        size={17}
+                        className="animate-spin"
+                      />
+                      Sending STK...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard size={17} />
+                      Pay with M-Pesa
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+export default Finance;
