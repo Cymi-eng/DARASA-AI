@@ -1,6 +1,5 @@
 from django.db import models
 
-
 from .student import Student
 
 
@@ -34,7 +33,9 @@ class FeePayment(models.Model):
     transaction_id = models.CharField(
         max_length=100,
         unique=True,
+        null=True,
         blank=True,
+        default=None,
     )
 
     checkout_request_id = models.CharField(
