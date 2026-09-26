@@ -4,7 +4,32 @@ from rest_framework.permissions import BasePermission
 class HasSchoolAccess(BasePermission):
     """
     Allows authenticated users who belong to a school.
-    Superusers bypass school restrictions.
+
+    Platform administrators are allowed through because they
+    operate at the platform level rather than within one school.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.user.is_superuser:
+            return True
+
+        profile = getattr(request.user, "profile", None)
+
+        if not profile:
+            return False
+
+        if profile.role == "PLATFORM_ADMIN":
+            return True
+
+        return profile.school_id is not None
+
+
+class IsPlatformAdmin(BasePermission):
+    """
+    Allows only DARASA-AI platform administrators.
     """
 
     def has_permission(self, request, view):
@@ -18,13 +43,16 @@ class HasSchoolAccess(BasePermission):
 
         return bool(
             profile
-            and profile.school_id
+            and profile.role == "PLATFORM_ADMIN"
         )
 
 
 class IsSchoolAdmin(BasePermission):
     """
-    Allows only school administrators or Django superusers.
+    Allows only school administrators.
+
+    Platform administrators are intentionally excluded here.
+    Platform-level and school-level responsibilities remain separate.
     """
 
     def has_permission(self, request, view):
@@ -38,14 +66,14 @@ class IsSchoolAdmin(BasePermission):
 
         return bool(
             profile
-            and profile.school_id
             and profile.role == "ADMIN"
+            and profile.school_id is not None
         )
 
 
 class IsTeacher(BasePermission):
     """
-    Allows only teachers or Django superusers.
+    Allows authenticated teachers belonging to a school.
     """
 
     def has_permission(self, request, view):
@@ -59,14 +87,14 @@ class IsTeacher(BasePermission):
 
         return bool(
             profile
-            and profile.school_id
             and profile.role == "TEACHER"
+            and profile.school_id is not None
         )
 
 
 class IsBursar(BasePermission):
     """
-    Allows only bursars or Django superusers.
+    Allows authenticated bursars belonging to a school.
     """
 
     def has_permission(self, request, view):
@@ -80,8 +108,29 @@ class IsBursar(BasePermission):
 
         return bool(
             profile
-            and profile.school_id
             and profile.role == "BURSAR"
+            and profile.school_id is not None
+        )
+
+
+class IsStudent(BasePermission):
+    """
+    Allows authenticated students belonging to a school.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.user.is_superuser:
+            return True
+
+        profile = getattr(request.user, "profile", None)
+
+        return bool(
+            profile
+            and profile.role == "STUDENT"
+            and profile.school_id is not None
         )
 
 
@@ -101,8 +150,8 @@ class IsAdminOrTeacher(BasePermission):
 
         return bool(
             profile
-            and profile.school_id
-            and profile.role in ["ADMIN", "TEACHER"]
+            and profile.role in {"ADMIN", "TEACHER"}
+            and profile.school_id is not None
         )
 
 
@@ -122,6 +171,6 @@ class IsAdminOrBursar(BasePermission):
 
         return bool(
             profile
-            and profile.school_id
-            and profile.role in ["ADMIN", "BURSAR"]
+            and profile.role in {"ADMIN", "BURSAR"}
+            and profile.school_id is not None
         )
