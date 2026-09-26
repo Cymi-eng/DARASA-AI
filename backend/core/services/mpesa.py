@@ -92,6 +92,38 @@ class MpesaService:
                 "'sandbox' or 'production'."
             )
 
+    def _normalize_phone_number(self, phone_number):
+        """
+        Convert Kenyan phone numbers to Daraja format.
+
+        Examples:
+            0708374149   -> 254708374149
+            708374149    -> 254708374149
+            254708374149 -> 254708374149
+        """
+
+        phone = str(phone_number).strip()
+
+        if phone.startswith("+254"):
+            phone = phone[1:]
+
+        elif phone.startswith("0"):
+            phone = "254" + phone[1:]
+
+        elif len(phone) == 9 and phone.startswith("7"):
+            phone = "254" + phone
+
+        if (
+            len(phone) != 12
+            or not phone.startswith("254")
+            or not phone[3:].isdigit()
+        ):
+            raise MpesaError(
+                "Enter a valid Kenyan M-Pesa phone number."
+            )
+
+        return phone
+
     def get_access_token(self):
         """
         Request an OAuth access token from Daraja.
@@ -181,6 +213,35 @@ class MpesaService:
 
         self._validate_configuration()
 
+        phone_number = self._normalize_phone_number(
+            phone_number
+        )
+
+        if not account_reference:
+            raise MpesaError(
+                "A payment account reference is required."
+            )
+
+        account_reference = str(
+            account_reference
+        )[:12]
+
+        transaction_desc = str(
+            transaction_desc or "School fee"
+        )[:13]
+
+        try:
+            amount = int(amount)
+        except (TypeError, ValueError) as exc:
+            raise MpesaError(
+                "Payment amount must be a valid number."
+            ) from exc
+
+        if amount <= 0:
+            raise MpesaError(
+                "Payment amount must be greater than zero."
+            )
+
         access_token = self.get_access_token()
 
         timestamp = datetime.now().strftime(
@@ -200,8 +261,10 @@ class MpesaService:
             "BusinessShortCode": self.shortcode,
             "Password": password,
             "Timestamp": timestamp,
-            "TransactionType": "CustomerPayBillOnline",
-            "Amount": int(amount),
+            "TransactionType": (
+                "CustomerPayBillOnline"
+            ),
+            "Amount": amount,
             "PartyA": phone_number,
             "PartyB": self.shortcode,
             "PhoneNumber": phone_number,
@@ -230,17 +293,23 @@ class MpesaService:
                 "Unable to connect to M-Pesa."
             ) from exc
 
-        if not response.ok:
-            raise MpesaError(
-                "M-Pesa STK Push request failed."
-            )
-
         try:
             data = response.json()
         except ValueError as exc:
             raise MpesaError(
                 "M-Pesa returned an invalid response."
             ) from exc
+
+        if not response.ok:
+            description = data.get(
+                "errorMessage"
+                or "error_description"
+            )
+
+            raise MpesaError(
+                description
+                or "M-Pesa STK Push request failed."
+            )
 
         response_code = data.get(
             "ResponseCode"
