@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 
+import api from "../api";
 import {
   getAccessToken,
   login,
@@ -19,27 +20,58 @@ export function AuthProvider({ children }) {
     Boolean(getAccessToken())
   );
 
+  const [user, setUser] = useState(null);
+
   useEffect(() => {
-    setIsAuthenticated(Boolean(getAccessToken()));
+    const restoreUser = async () => {
+      const token = getAccessToken();
+
+      if (!token) {
+        setIsAuthenticated(false);
+        setUser(null);
+        return;
+      }
+
+      try {
+        const response = await api.get("/users/me/");
+
+        setUser(response.data);
+        setIsAuthenticated(true);
+      } catch {
+        logout();
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    };
+
+    restoreUser();
   }, []);
 
   const handleLogin = async (username, password) => {
     await login(username, password);
+
+    const response = await api.get("/users/me/");
+
+    setUser(response.data);
     setIsAuthenticated(true);
+
+    return response.data;
   };
 
   const handleLogout = () => {
     logout();
+    setUser(null);
     setIsAuthenticated(false);
   };
 
   const value = useMemo(
     () => ({
       isAuthenticated,
+      user,
       login: handleLogin,
       logout: handleLogout,
     }),
-    [isAuthenticated]
+    [isAuthenticated, user]
   );
 
   return (
