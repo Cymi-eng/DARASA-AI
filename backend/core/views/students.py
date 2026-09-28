@@ -1,9 +1,10 @@
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
 from ..models import Student
-from ..permissions import IsAdminOrTeacher
+from ..permissions import IsAdminOrTeacher, IsStudent
 from ..serializers import StudentSerializer
 from ..services.adaptive_learning import AdaptiveLearningService
 from .base import SchoolScopedViewSet
@@ -14,12 +15,36 @@ class StudentViewSet(SchoolScopedViewSet):
     serializer_class = StudentSerializer
 
     def get_permissions(self):
+        user = self.request.user
+
+        if (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "STUDENT"
+        ):
+            if self.request.method in SAFE_METHODS:
+                return [IsStudent()]
+
+            return [IsAdminOrTeacher()]
+
         return [IsAdminOrTeacher()]
+
+    def _is_student(self):
+        user = self.request.user
+
+        return (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "STUDENT"
+        )
 
     def get_queryset(self):
         school = self.get_school()
 
         queryset = Student.objects.all().select_related(
+            "user",
             "school",
             "classroom",
         )
@@ -31,10 +56,16 @@ class StudentViewSet(SchoolScopedViewSet):
 
         user = self.request.user
 
-        # Teachers can only access learners in classrooms
-        # assigned to them. School admins retain access to
-        # all learners in their school.
-        if (
+        # Students can only access their own
+        # linked student record.
+        if self._is_student():
+            queryset = queryset.filter(
+                user=user
+            )
+
+        # Teachers can only access learners in
+        # classrooms assigned to them.
+        elif (
             user.is_authenticated
             and not user.is_superuser
             and hasattr(user, "profile")
@@ -48,7 +79,7 @@ class StudentViewSet(SchoolScopedViewSet):
             "grade"
         )
 
-        if grade:
+        if grade and not self._is_student():
             queryset = queryset.filter(
                 grade=grade
             )
@@ -57,7 +88,7 @@ class StudentViewSet(SchoolScopedViewSet):
             "classroom"
         )
 
-        if classroom:
+        if classroom and not self._is_student():
             queryset = queryset.filter(
                 classroom_id=classroom
             )
