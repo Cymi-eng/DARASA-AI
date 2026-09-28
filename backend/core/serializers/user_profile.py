@@ -68,6 +68,26 @@ class CurrentUserSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    role = serializers.CharField(
+        source="profile.role",
+        read_only=True,
+    )
+
+    role_display = serializers.CharField(
+        source="profile.get_role_display",
+        read_only=True,
+    )
+
+    school = serializers.PrimaryKeyRelatedField(
+        source="profile.school",
+        read_only=True,
+    )
+
+    school_name = serializers.CharField(
+        source="profile.school.name",
+        read_only=True,
+    )
+
     class Meta:
         model = User
         fields = [
@@ -76,6 +96,10 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "email",
+            "role",
+            "role_display",
+            "school",
+            "school_name",
             "profile",
         ]
         read_only_fields = fields
