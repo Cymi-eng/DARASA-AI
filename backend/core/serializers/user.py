@@ -3,7 +3,13 @@ from django.db import transaction
 
 from rest_framework import serializers
 
-from ..models import School, UserProfile, Teacher, ClassRoom
+from ..models import (
+    School,
+    UserProfile,
+    Teacher,
+    ClassRoom,
+    Student,
+)
 
 
 User = get_user_model()
@@ -23,6 +29,13 @@ class UserAccountSerializer(serializers.ModelSerializer):
         required=False,
     )
 
+    student = serializers.PrimaryKeyRelatedField(
+        queryset=Student.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+
     password = serializers.CharField(
         write_only=True,
         required=False,
@@ -40,6 +53,7 @@ class UserAccountSerializer(serializers.ModelSerializer):
             "password",
             "school",
             "role",
+            "student",
         ]
         read_only_fields = ["id"]
 
@@ -51,28 +65,143 @@ class UserAccountSerializer(serializers.ModelSerializer):
                 "Authentication is required."
             )
 
-        if request.user.is_superuser:
-            return attrs
-
-        profile = getattr(request.user, "profile", None)
-
-        if not profile or not profile.school_id:
-            raise serializers.ValidationError(
-                "Your account is not associated with a school."
-            )
-
         profile_data = attrs.get("profile", {})
         requested_school = profile_data.get("school")
+        selected_student = attrs.get("student")
+
+        current_role = (
+            self.instance.profile.role
+            if self.instance is not None
+            else UserProfile.ROLE_TEACHER
+        )
+
+        requested_role = attrs.get(
+            "role",
+            current_role,
+        )
+
+        if request.user.is_superuser:
+            school = requested_school
+
+            if school is None and self.instance is not None:
+                school = self.instance.profile.school
+
+        else:
+            profile = getattr(
+                request.user,
+                "profile",
+                None,
+            )
+
+            if not profile or not profile.school_id:
+                raise serializers.ValidationError(
+                    "Your account is not associated with a school."
+                )
+
+            school = profile.school
+
+            if (
+                requested_school
+                and requested_school.id != profile.school_id
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "school": (
+                            "You cannot assign a user "
+                            "to another school."
+                        )
+                    }
+                )
+
+        if selected_student is not None:
+            if requested_role != UserProfile.ROLE_STUDENT:
+                raise serializers.ValidationError(
+                    {
+                        "student": (
+                            "A student record can only be "
+                            "linked to a STUDENT account."
+                        )
+                    }
+                )
+
+            if school is None:
+                raise serializers.ValidationError(
+                    {
+                        "student": (
+                            "A school is required when "
+                            "linking a student account."
+                        )
+                    }
+                )
+
+            if selected_student.school_id != school.id:
+                raise serializers.ValidationError(
+                    {
+                        "student": (
+                            "The selected student does not "
+                            "belong to this school."
+                        )
+                    }
+                )
+
+            existing_link = (
+                Student.objects
+                .filter(user=selected_student.user)
+                .exclude(pk=selected_student.pk)
+                .first()
+                if selected_student.user_id
+                else None
+            )
+
+            if existing_link:
+                raise serializers.ValidationError(
+                    {
+                        "student": (
+                            "The selected student user is "
+                            "already linked to another student."
+                        )
+                    }
+                )
+
+            if (
+                selected_student.user_id
+                and self.instance is not None
+                and selected_student.user_id != self.instance.pk
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "student": (
+                            "The selected student is already "
+                            "linked to another user account."
+                        )
+                    }
+                )
 
         if (
-            requested_school
-            and requested_school.id != profile.school_id
+            requested_role == UserProfile.ROLE_STUDENT
+            and self.instance is None
+            and selected_student is None
         ):
             raise serializers.ValidationError(
                 {
-                    "school": (
-                        "You cannot assign a user "
-                        "to another school."
+                    "student": (
+                        "A student record is required when "
+                        "creating a STUDENT account."
+                    )
+                }
+            )
+
+        if (
+            requested_role == UserProfile.ROLE_STUDENT
+            and self.instance is not None
+            and selected_student is None
+            and not hasattr(self.instance, "student_record")
+        ):
+            raise serializers.ValidationError(
+                {
+                    "student": (
+                        "A student record is required when "
+                        "converting an account to STUDENT."
                     )
                 }
             )
@@ -81,9 +210,21 @@ class UserAccountSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        profile_data = validated_data.pop("profile", {})
+        profile_data = validated_data.pop(
+            "profile",
+            {},
+        )
 
-        password = validated_data.pop("password", None)
+        selected_student = validated_data.pop(
+            "student",
+            None,
+        )
+
+        password = validated_data.pop(
+            "password",
+            None,
+        )
+
         role = validated_data.pop(
             "role",
             UserProfile.ROLE_TEACHER,
@@ -142,13 +283,40 @@ class UserAccountSerializer(serializers.ModelSerializer):
                 school=school,
             )
 
+        if role == UserProfile.ROLE_STUDENT:
+            if selected_student is None:
+                raise serializers.ValidationError(
+                    {
+                        "student": (
+                            "A student record is required "
+                            "for a STUDENT account."
+                        )
+                    }
+                )
+
+            selected_student.user = user
+            selected_student.save(
+                update_fields=["user"]
+            )
+
         return user
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        profile_data = validated_data.pop("profile", {})
+        profile_data = validated_data.pop(
+            "profile",
+            {},
+        )
 
-        password = validated_data.pop("password", None)
+        selected_student = validated_data.pop(
+            "student",
+            None,
+        )
+
+        password = validated_data.pop(
+            "password",
+            None,
+        )
 
         role = validated_data.pop(
             "role",
@@ -170,6 +338,8 @@ class UserAccountSerializer(serializers.ModelSerializer):
         if school is not None:
             profile.school = school
 
+        previous_role = profile.role
+
         if role:
             profile.role = role
 
@@ -187,6 +357,45 @@ class UserAccountSerializer(serializers.ModelSerializer):
             Teacher.objects.filter(
                 user=instance
             ).delete()
+
+        if role == UserProfile.ROLE_STUDENT:
+            current_student = getattr(
+                instance,
+                "student_record",
+                None,
+            )
+
+            if selected_student is not None:
+                if (
+                    current_student is not None
+                    and current_student.pk != selected_student.pk
+                ):
+                    current_student.user = None
+                    current_student.save(
+                        update_fields=["user"]
+                    )
+
+                selected_student.user = instance
+                selected_student.save(
+                    update_fields=["user"]
+                )
+
+        elif (
+            role
+            and previous_role == UserProfile.ROLE_STUDENT
+            and role != UserProfile.ROLE_STUDENT
+        ):
+            current_student = getattr(
+                instance,
+                "student_record",
+                None,
+            )
+
+            if current_student is not None:
+                current_student.user = None
+                current_student.save(
+                    update_fields=["user"]
+                )
 
         return instance
 
