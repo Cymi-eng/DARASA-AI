@@ -9,6 +9,7 @@ import Competencies from "./pages/Competencies.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Finance from "./pages/Finance.jsx";
 import Login from "./pages/Login.jsx";
+import StudentPortal from "./pages/StudentPortal.jsx";
 import Students from "./pages/Students.jsx";
 import TeacherPortal from "./pages/TeacherPortal.jsx";
 import Teachers from "./pages/Teachers.jsx";
@@ -35,17 +36,6 @@ function App() {
             <Navigate to="/dashboard" replace />
           ) : (
             <Login />
-          )
-        }
-      />
-
-      <Route
-        path="/teacher-login"
-        element={
-          isAuthenticated ? (
-            <Navigate to="/teacher-portal" replace />
-          ) : (
-            <TeacherLogin />
           )
         }
       />
@@ -118,6 +108,15 @@ function App() {
         element={
           <ProtectedRoute>
             <TeacherPortal />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/student-portal"
+        element={
+          <ProtectedRoute>
+            <StudentPortal />
           </ProtectedRoute>
         }
       />
