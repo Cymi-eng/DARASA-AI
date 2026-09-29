@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import path
 
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import (
@@ -9,6 +9,7 @@ from rest_framework_simplejwt.views import (
 
 from core.views import (
     UserAccountViewSet,
+    StudentRegistrationView,
     StudentViewSet,
     CompetencyViewSet,
     SchoolViewSet,
@@ -72,10 +73,12 @@ router.register(
     r"notifications",
     NotificationViewSet,
 )
+
 router.register(
     r"demo",
-     DemoDataViewSet,
-     basename="demo")
+    DemoDataViewSet,
+    basename="demo",
+)
 
 
 urlpatterns = [
@@ -97,6 +100,12 @@ urlpatterns = [
     ),
 
     path(
+        "api/auth/student-register/",
+        StudentRegistrationView.as_view(),
+        name="student_register",
+    ),
+
+    path(
         "api/dashboard/",
         DashboardViewSet.as_view(
             {"get": "list"}
@@ -112,6 +121,6 @@ urlpatterns = [
 
     path(
         "api/",
-        include(router.urls),
+        router.urls,
     ),
 ]
