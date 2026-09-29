@@ -1,9 +1,10 @@
 from rest_framework import status, viewsets
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
 from ..models import FeePayment
-from ..permissions import IsAdminOrBursar
+from ..permissions import IsAdminOrBursar, IsStudent
 from ..serializers import FeePaymentSerializer
 from ..services.mpesa import MpesaError, MpesaService
 from .base import SchoolScopedViewSet
@@ -13,7 +14,23 @@ class FeePaymentViewSet(SchoolScopedViewSet):
     queryset = FeePayment.objects.all()
     serializer_class = FeePaymentSerializer
 
+    def _is_student(self):
+        user = self.request.user
+
+        return (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "STUDENT"
+        )
+
     def get_permissions(self):
+        if self._is_student():
+            if self.request.method in SAFE_METHODS:
+                return [IsStudent()]
+
+            return [IsAdminOrBursar()]
+
         return [IsAdminOrBursar()]
 
     def get_queryset(self):
@@ -21,6 +38,7 @@ class FeePaymentViewSet(SchoolScopedViewSet):
 
         queryset = FeePayment.objects.all().select_related(
             "student",
+            "student__user",
             "student__school",
         )
 
@@ -29,18 +47,28 @@ class FeePaymentViewSet(SchoolScopedViewSet):
                 student__school=school
             )
 
-        student = self.request.query_params.get("student")
-
-        if student:
+        # Students can only see payments belonging
+        # to their own linked student record.
+        if self._is_student():
             queryset = queryset.filter(
-                student_id=student
+                student__user=self.request.user
             )
+
+        else:
+            student = self.request.query_params.get(
+                "student"
+            )
+
+            if student:
+                queryset = queryset.filter(
+                    student_id=student
+                )
 
         payment_status = self.request.query_params.get(
             "status"
         )
 
-        if payment_status:
+        if payment_status and not self._is_student():
             queryset = queryset.filter(
                 status=payment_status
             )
