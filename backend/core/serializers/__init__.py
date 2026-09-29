@@ -1,8 +1,4 @@
-from .user import (
-    UserAccountSerializer,
-    TeacherSerializer,
-    StudentRegistrationSerializer,
-)
+from .user import UserAccountSerializer, TeacherSerializer
 from .school import SchoolSerializer
 from .student import StudentSerializer
 from .classroom import ClassRoomSerializer
@@ -15,7 +11,6 @@ from .notification import NotificationSerializer
 __all__ = [
     "UserAccountSerializer",
     "TeacherSerializer",
-    "StudentRegistrationSerializer",
     "SchoolSerializer",
     "StudentSerializer",
     "ClassRoomSerializer",

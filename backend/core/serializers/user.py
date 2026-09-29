@@ -295,6 +295,7 @@ class UserAccountSerializer(serializers.ModelSerializer):
                 )
 
             selected_student.user = user
+
             selected_student.save(
                 update_fields=["user"]
             )
@@ -371,11 +372,13 @@ class UserAccountSerializer(serializers.ModelSerializer):
                     and current_student.pk != selected_student.pk
                 ):
                     current_student.user = None
+
                     current_student.save(
                         update_fields=["user"]
                     )
 
                 selected_student.user = instance
+
                 selected_student.save(
                     update_fields=["user"]
                 )
@@ -393,225 +396,12 @@ class UserAccountSerializer(serializers.ModelSerializer):
 
             if current_student is not None:
                 current_student.user = None
+
                 current_student.save(
                     update_fields=["user"]
                 )
 
         return instance
-
-
-class StudentRegistrationSerializer(serializers.Serializer):
-    admission_number = serializers.CharField(
-        max_length=50,
-    )
-
-    first_name = serializers.CharField(
-        max_length=150,
-    )
-
-    last_name = serializers.CharField(
-        max_length=150,
-    )
-
-    date_of_birth = serializers.DateField(
-        required=False,
-        allow_null=True,
-    )
-
-    guardian_phone = serializers.CharField(
-        max_length=30,
-    )
-
-    username = serializers.CharField(
-        max_length=150,
-    )
-
-    password = serializers.CharField(
-        write_only=True,
-        min_length=8,
-    )
-
-    def validate_username(self, value):
-        value = value.strip()
-
-        if not value:
-            raise serializers.ValidationError(
-                "Username is required."
-            )
-
-        if User.objects.filter(
-            username__iexact=value
-        ).exists():
-            raise serializers.ValidationError(
-                "This username is already in use."
-            )
-
-        return value
-
-    def validate(self, attrs):
-        admission_number = attrs[
-            "admission_number"
-        ].strip()
-
-        first_name = attrs[
-            "first_name"
-        ].strip()
-
-        last_name = attrs[
-            "last_name"
-        ].strip()
-
-        guardian_phone = attrs[
-            "guardian_phone"
-        ].strip()
-
-        date_of_birth = attrs.get(
-            "date_of_birth"
-        )
-
-        student = (
-            Student.objects
-            .select_related(
-                "school",
-                "user",
-            )
-            .filter(
-                admission_number__iexact=admission_number
-            )
-            .first()
-        )
-
-        if student is None:
-            raise serializers.ValidationError(
-                {
-                    "admission_number": (
-                        "No student record was found "
-                        "with this admission number."
-                    )
-                }
-            )
-
-        if student.user_id:
-            raise serializers.ValidationError(
-                {
-                    "admission_number": (
-                        "This student already has "
-                        "an account."
-                    )
-                }
-            )
-
-        if (
-            student.first_name.strip().lower()
-            != first_name.lower()
-        ):
-            raise serializers.ValidationError(
-                {
-                    "first_name": (
-                        "The first name does not match "
-                        "the school record."
-                    )
-                }
-            )
-
-        if (
-            student.last_name.strip().lower()
-            != last_name.lower()
-        ):
-            raise serializers.ValidationError(
-                {
-                    "last_name": (
-                        "The last name does not match "
-                        "the school record."
-                    )
-                }
-            )
-
-        if (
-            date_of_birth is not None
-            and student.date_of_birth != date_of_birth
-        ):
-            raise serializers.ValidationError(
-                {
-                    "date_of_birth": (
-                        "The date of birth does not match "
-                        "the school record."
-                    )
-                }
-            )
-
-        if (
-            student.guardian_phone
-            and student.guardian_phone.strip()
-            != guardian_phone
-        ):
-            raise serializers.ValidationError(
-                {
-                    "guardian_phone": (
-                        "The guardian phone number does "
-                        "not match the school record."
-                    )
-                }
-            )
-
-        attrs["admission_number"] = (
-            admission_number
-        )
-
-        attrs["first_name"] = first_name
-        attrs["last_name"] = last_name
-        attrs["guardian_phone"] = guardian_phone
-        attrs["student"] = student
-
-        return attrs
-
-    @transaction.atomic
-    def create(self, validated_data):
-        student = validated_data.pop(
-            "student"
-        )
-
-        validated_data.pop(
-            "admission_number"
-        )
-
-        validated_data.pop(
-            "date_of_birth",
-            None,
-        )
-
-        validated_data.pop(
-            "guardian_phone"
-        )
-
-        password = validated_data.pop(
-            "password"
-        )
-
-        user = User.objects.create_user(
-            username=validated_data["username"],
-            password=password,
-            first_name=validated_data[
-                "first_name"
-            ],
-            last_name=validated_data[
-                "last_name"
-            ],
-        )
-
-        UserProfile.objects.create(
-            user=user,
-            school=student.school,
-            role=UserProfile.ROLE_STUDENT,
-        )
-
-        student.user = user
-
-        student.save(
-            update_fields=["user"]
-        )
-
-        return user
 
 
 class TeacherSerializer(serializers.ModelSerializer):
@@ -646,6 +436,7 @@ class TeacherSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Teacher
+
         fields = [
             "id",
             "user",
