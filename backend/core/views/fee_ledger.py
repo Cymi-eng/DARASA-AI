@@ -1,11 +1,13 @@
 from django.db.models import Count, Sum
+
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
 from ..models import FeeLedgerEntry, FeePayment
-from ..permissions import IsAdminOrBursar
+from ..permissions import IsAdminOrBursar, IsStudent
 from ..serializers import FeeLedgerEntrySerializer
 from .base import SchoolScopedViewSet
 
@@ -14,7 +16,26 @@ class FeeLedgerViewSet(SchoolScopedViewSet):
     queryset = FeeLedgerEntry.objects.all()
     serializer_class = FeeLedgerEntrySerializer
 
+    def _is_student(self):
+        user = self.request.user
+
+        return (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "STUDENT"
+        )
+
     def get_permissions(self):
+        if self._is_student():
+            if (
+                self.request.method in SAFE_METHODS
+                or self.action == "summary"
+            ):
+                return [IsStudent()]
+
+            return [IsAdminOrBursar()]
+
         return [IsAdminOrBursar()]
 
     def get_queryset(self):
@@ -22,6 +43,7 @@ class FeeLedgerViewSet(SchoolScopedViewSet):
 
         queryset = FeeLedgerEntry.objects.all().select_related(
             "student",
+            "student__user",
             "student__school",
             "payment",
         )
@@ -31,20 +53,28 @@ class FeeLedgerViewSet(SchoolScopedViewSet):
                 student__school=school
             )
 
-        student = self.request.query_params.get(
-            "student"
-        )
-
-        if student:
+        # Students can only access ledger entries
+        # belonging to their own linked student record.
+        if self._is_student():
             queryset = queryset.filter(
-                student_id=student
+                student__user=self.request.user
             )
+
+        else:
+            student = self.request.query_params.get(
+                "student"
+            )
+
+            if student:
+                queryset = queryset.filter(
+                    student_id=student
+                )
 
         entry_type = self.request.query_params.get(
             "entry_type"
         )
 
-        if entry_type:
+        if entry_type and not self._is_student():
             queryset = queryset.filter(
                 entry_type=entry_type
             )
@@ -59,7 +89,10 @@ class FeeLedgerViewSet(SchoolScopedViewSet):
 
         student = serializer.validated_data["student"]
 
-        if school is not None and student.school_id != school.id:
+        if (
+            school is not None
+            and student.school_id != school.id
+        ):
             raise ValidationError(
                 {
                     "student": (
@@ -136,11 +169,11 @@ class FeeLedgerViewSet(SchoolScopedViewSet):
                 },
                 "adjustments": {
                     "count": adjustment_total["count"],
-                    "total": adjustment_total["total"] or 0,
+                    "total": total_adjustments,
                 },
                 "refunds": {
                     "count": refund_total["count"],
-                    "total": refund_total["total"] or 0,
+                    "total": total_refunds,
                 },
                 "net_balance": net_balance,
             },
@@ -151,6 +184,7 @@ class FeeLedgerViewSet(SchoolScopedViewSet):
         detail=False,
         methods=["get"],
         url_path="reconciliation",
+        permission_classes=[IsAdminOrBursar],
     )
     def reconciliation(self, request):
         school = self.get_school()
@@ -188,17 +222,18 @@ class FeeLedgerViewSet(SchoolScopedViewSet):
             total=Sum("amount")
         )["total"] or 0
 
-        missing_ledger_count = (
-            payments.filter(
-                ledger_entries__isnull=True
-            ).count()
-        )
+        missing_ledger_count = payments.filter(
+            ledger_entries__isnull=True
+        ).count()
 
         amount_difference = (
             payment_total - ledger_total
         )
 
-        if missing_ledger_count == 0 and amount_difference == 0:
+        if (
+            missing_ledger_count == 0
+            and amount_difference == 0
+        ):
             reconciliation_status = "RECONCILED"
         else:
             reconciliation_status = "ACTION_REQUIRED"
