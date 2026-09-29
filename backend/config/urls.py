@@ -9,7 +9,6 @@ from rest_framework_simplejwt.views import (
 
 from core.views import (
     UserAccountViewSet,
-    StudentRegistrationView,
     StudentViewSet,
     CompetencyViewSet,
     SchoolViewSet,
@@ -87,6 +86,7 @@ urlpatterns = [
         admin.site.urls,
     ),
 
+    # JWT Authentication
     path(
         "api/auth/token/",
         TokenObtainPairView.as_view(),
@@ -99,12 +99,7 @@ urlpatterns = [
         name="token_refresh",
     ),
 
-    path(
-        "api/auth/student-register/",
-        StudentRegistrationView.as_view(),
-        name="student_register",
-    ),
-
+    # Dashboard
     path(
         "api/dashboard/",
         DashboardViewSet.as_view(
@@ -113,12 +108,14 @@ urlpatterns = [
         name="dashboard",
     ),
 
+    # M-Pesa callback
     path(
         "api/mpesa/callback/",
         mpesa_callback,
         name="mpesa_callback",
     ),
 
+    # Main API routes
     path(
         "api/",
         include(router.urls),

@@ -1,8 +1,5 @@
 from .base import SchoolScopedViewSet
-from .users import (
-    UserAccountViewSet,
-    StudentRegistrationView,
-)
+from .users import UserAccountViewSet
 from .schools import SchoolViewSet
 from .students import StudentViewSet
 from .classrooms import ClassRoomViewSet
@@ -18,7 +15,6 @@ from .demo import DemoDataViewSet
 __all__ = [
     "SchoolScopedViewSet",
     "UserAccountViewSet",
-    "StudentRegistrationView",
     "SchoolViewSet",
     "StudentViewSet",
     "ClassRoomViewSet",

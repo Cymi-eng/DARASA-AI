@@ -7,6 +7,7 @@ from rest_framework_simplejwt.views import (
 
 from .views import (
     UserAccountViewSet,
+    StudentRegistrationView,
     StudentViewSet,
     CompetencyViewSet,
     SchoolViewSet,
@@ -67,6 +68,12 @@ urlpatterns = [
         "auth/token/refresh/",
         TokenRefreshView.as_view(),
         name="token_refresh",
+    ),
+
+    path(
+        "auth/student-register/",
+        StudentRegistrationView.as_view(),
+        name="student_register",
     ),
 
     path(
