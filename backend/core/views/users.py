@@ -1,65 +1,16 @@
 from django.contrib.auth import get_user_model
 
-from rest_framework import permissions, status, viewsets
+from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from ..permissions import IsSchoolAdmin
-from ..serializers import (
-    StudentRegistrationSerializer,
-    UserAccountSerializer,
-)
+from ..serializers import UserAccountSerializer
 from ..serializers.user_profile import CurrentUserSerializer
 
 
 User = get_user_model()
-
-
-class StudentRegistrationView(APIView):
-    """
-    Public student account registration endpoint.
-
-    A learner must already exist as a Student record.
-    The registration serializer verifies the supplied
-    learner information before creating the account.
-    """
-
-    permission_classes = [
-        permissions.AllowAny,
-    ]
-
-    def post(self, request):
-        serializer = StudentRegistrationSerializer(
-            data=request.data
-        )
-
-        serializer.is_valid(
-            raise_exception=True
-        )
-
-        user = serializer.save()
-
-        return Response(
-            {
-                "detail": (
-                    "Student account created successfully."
-                ),
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "role": user.profile.role,
-                    "school": (
-                        user.profile.school.name
-                        if user.profile.school
-                        else None
-                    ),
-                },
-            },
-            status=status.HTTP_201_CREATED,
-        )
 
 
 class UserAccountViewSet(viewsets.ModelViewSet):
@@ -120,8 +71,6 @@ class UserAccountViewSet(viewsets.ModelViewSet):
         """
 
         if instance.pk == self.request.user.pk:
-            from rest_framework.exceptions import ValidationError
-
             raise ValidationError(
                 "You cannot delete your own account."
             )
