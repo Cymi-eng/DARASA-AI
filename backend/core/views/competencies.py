@@ -3,10 +3,11 @@ from django.db.models import Count
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
 from ..models import Competency, Student
-from ..permissions import IsAdminOrTeacher
+from ..permissions import IsAdminOrTeacher, IsStudent
 from ..serializers import CompetencySerializer
 from .base import SchoolScopedViewSet
 
@@ -15,36 +16,29 @@ class CompetencyViewSet(SchoolScopedViewSet):
     """
     CBC competency assessment API.
 
-    Teachers and school administrators can:
+    School administrators can access learners within
+    their school.
 
-    - create assessments
-    - view assessments
-    - update assessments
-    - delete assessments
-    - filter assessments
-    - view student competency summaries
-    - view classroom competency summaries
-    - identify student intervention areas
+    Teachers can only access learners in classrooms
+    assigned to them.
 
-    School administrators can access all learners
-    within their school.
-
-    Teachers can only access learners belonging to
-    classrooms assigned to them.
+    Students can only read their own competency data.
     """
 
     queryset = Competency.objects.all()
     serializer_class = CompetencySerializer
 
-    def get_permissions(self):
-        return [IsAdminOrTeacher()]
+    def _is_student(self):
+        user = self.request.user
+
+        return (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "STUDENT"
+        )
 
     def _is_teacher(self):
-        """
-        Return True when the authenticated user is
-        a non-superuser teacher.
-        """
-
         user = self.request.user
 
         return (
@@ -54,36 +48,57 @@ class CompetencyViewSet(SchoolScopedViewSet):
             and user.profile.role == "TEACHER"
         )
 
+    def get_permissions(self):
+        if self._is_student():
+            if (
+                self.request.method in SAFE_METHODS
+                and self.action != "classroom_summary"
+            ):
+                return [IsStudent()]
+
+            return [IsAdminOrTeacher()]
+
+        return [IsAdminOrTeacher()]
+
     def _teacher_can_access_student(self, student):
-        """
-        Check whether the current teacher is assigned
-        to the student's classroom.
-
-        School administrators and superusers are handled
-        outside this method.
-        """
-
         if not self._is_teacher():
             return True
 
-        return student.classroom is not None and student.classroom.teachers.filter(
-            user=self.request.user
-        ).exists()
+        return (
+            student.classroom is not None
+            and student.classroom.teachers.filter(
+                user=self.request.user
+            ).exists()
+        )
+
+    def _student_can_access_student(self, student):
+        if not self._is_student():
+            return True
+
+        return student.user_id == self.request.user.id
 
     def _validate_student_access(self, student):
-        """
-        Validate school isolation and teacher classroom
-        assignment for a student.
-        """
-
         school = self.get_school()
 
-        if school is not None and student.school_id != school.id:
+        if (
+            school is not None
+            and student.school_id != school.id
+        ):
             raise ValidationError(
                 {
                     "student": (
                         "Student does not belong "
                         "to your school."
+                    )
+                }
+            )
+
+        if not self._student_can_access_student(student):
+            raise ValidationError(
+                {
+                    "student": (
+                        "Students can only access "
+                        "their own competency records."
                     )
                 }
             )
@@ -99,17 +114,15 @@ class CompetencyViewSet(SchoolScopedViewSet):
             )
 
     def _student_is_accessible(self, student):
-        """
-        Return whether the current user can access
-        the supplied student.
-        """
-
         school = self.get_school()
 
         if (
             school is not None
             and student.school_id != school.id
         ):
+            return False
+
+        if not self._student_can_access_student(student):
             return False
 
         return self._teacher_can_access_student(student)
@@ -119,34 +132,35 @@ class CompetencyViewSet(SchoolScopedViewSet):
 
         queryset = Competency.objects.all().select_related(
             "student",
+            "student__user",
             "student__school",
             "student__classroom",
         )
 
-        # School isolation.
         if school is not None:
             queryset = queryset.filter(
                 student__school=school
             )
 
-        # Teachers can only see assessments belonging
-        # to students in classrooms assigned to them.
-        if self._is_teacher():
+        if self._is_student():
+            queryset = queryset.filter(
+                student__user=self.request.user
+            )
+
+        elif self._is_teacher():
             queryset = queryset.filter(
                 student__classroom__teachers__user=self.request.user
             ).distinct()
 
-        # Filter by student.
         student = self.request.query_params.get(
             "student"
         )
 
-        if student:
+        if student and not self._is_student():
             queryset = queryset.filter(
                 student_id=student
             )
 
-        # Filter by learning area.
         learning_area = self.request.query_params.get(
             "learning_area"
         )
@@ -156,7 +170,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
                 learning_area=learning_area
             )
 
-        # Filter by strand.
         strand = self.request.query_params.get(
             "strand"
         )
@@ -166,7 +179,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
                 strand=strand
             )
 
-        # Filter by sub-strand.
         sub_strand = self.request.query_params.get(
             "sub_strand"
         )
@@ -176,7 +188,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
                 sub_strand=sub_strand
             )
 
-        # Filter by mastery level.
         mastery_level = self.request.query_params.get(
             "mastery_level"
         )
@@ -186,7 +197,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
                 mastery_level=mastery_level
             )
 
-        # Filter by exact assessment date.
         assessed_on = self.request.query_params.get(
             "assessed_on"
         )
@@ -196,7 +206,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
                 assessed_on=assessed_on
             )
 
-        # Filter from assessment date.
         assessed_from = self.request.query_params.get(
             "assessed_from"
         )
@@ -206,7 +215,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
                 assessed_on__gte=assessed_from
             )
 
-        # Filter up to assessment date.
         assessed_to = self.request.query_params.get(
             "assessed_to"
         )
@@ -222,16 +230,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
         )
 
     def perform_create(self, serializer):
-        """
-        Create a competency assessment.
-
-        School administrators can assess any learner
-        within their school.
-
-        Teachers can only assess learners belonging
-        to their assigned classrooms.
-        """
-
         student = serializer.validated_data["student"]
 
         self._validate_student_access(student)
@@ -239,14 +237,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
         serializer.save()
 
     def perform_update(self, serializer):
-        """
-        Update an existing competency assessment.
-
-        The student's school and teacher classroom
-        assignment are checked again so an assessment
-        cannot be moved outside the user's access scope.
-        """
-
         student = serializer.validated_data.get(
             "student",
             serializer.instance.student,
@@ -257,10 +247,6 @@ class CompetencyViewSet(SchoolScopedViewSet):
         serializer.save()
 
     def _mastery_distribution(self, competencies):
-        """
-        Return CBC mastery counts and percentages.
-        """
-
         total = competencies.count()
 
         distribution = {
@@ -299,16 +285,11 @@ class CompetencyViewSet(SchoolScopedViewSet):
         url_path=r"student/(?P<student_id>[^/.]+)/summary",
     )
     def student_summary(self, request, student_id=None):
-        """
-        Return a CBC competency summary for one student.
-        """
-
-        school = self.get_school()
-
         try:
             student = Student.objects.select_related(
                 "school",
                 "classroom",
+                "user",
             ).get(
                 id=student_id
             )
@@ -395,21 +376,11 @@ class CompetencyViewSet(SchoolScopedViewSet):
         request,
         student_id=None,
     ):
-        """
-        Identify learning areas, strands, and sub-strands
-        where a student may require intervention.
-
-        Intervention is based on the student's latest
-        assessment for each competency area.
-
-        BE = high priority
-        AE = medium priority
-        """
-
         try:
             student = Student.objects.select_related(
                 "school",
                 "classroom",
+                "user",
             ).get(
                 id=student_id
             )
@@ -525,26 +496,17 @@ class CompetencyViewSet(SchoolScopedViewSet):
         request,
         classroom_id=None,
     ):
-        """
-        Return CBC competency summary for a classroom.
-
-        Teachers can only view summaries for classrooms
-        assigned to them.
-        """
-
         school = self.get_school()
 
         students = Student.objects.filter(
             classroom_id=classroom_id
         )
 
-        # Enforce school isolation.
         if school is not None:
             students = students.filter(
                 school=school
             )
 
-        # Teachers can only view assigned classrooms.
         if self._is_teacher():
             students = students.filter(
                 classroom__teachers__user=self.request.user
