@@ -56,15 +56,11 @@ class StudentViewSet(SchoolScopedViewSet):
 
         user = self.request.user
 
-        # Students can only access their own
-        # linked student record.
         if self._is_student():
             queryset = queryset.filter(
                 user=user
             )
 
-        # Teachers can only access learners in
-        # classrooms assigned to them.
         elif (
             user.is_authenticated
             and not user.is_superuser
@@ -107,6 +103,37 @@ class StudentViewSet(SchoolScopedViewSet):
 
         serializer.save(
             school=school
+        )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="me",
+        permission_classes=[IsStudent],
+    )
+    def me(self, request):
+        """
+        Return the authenticated student's own learner record.
+        """
+
+        student = self.get_queryset().first()
+
+        if student is None:
+            return Response(
+                {
+                    "detail": (
+                        "No student record is linked "
+                        "to this account."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = self.get_serializer(student)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
         )
 
     @action(
