@@ -1,103 +1,122 @@
 import axios from "axios";
 
 const API_BASE_URL =
-import.meta.env.VITE_API_BASE_URL ||
-"http://127.0.0.1:8000/api";
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
 const ACCESS_TOKEN_KEY = "darasa_access_token";
 const REFRESH_TOKEN_KEY = "darasa_refresh_token";
 
 const api = axios.create({
-baseURL: API_BASE_URL,
-headers: {
-"Content-Type": "application/json",
-},
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
-let refreshPromise = null;
+api.interceptors.request.use(
+  (config) => {
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
 
-async function refreshAccessToken() {
-const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-
-if (!refreshToken) {
-throw new Error("No refresh token available.");
-}
-
-if (!refreshPromise) {
-refreshPromise = axios
-.post(`${API_BASE_URL}/auth/token/refresh/`, {
-refresh: refreshToken,
-})
-.then((response) => {
-const { access, refresh } = response.data;
-
-
-    localStorage.setItem(ACCESS_TOKEN_KEY, access);
-
-    if (refresh) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    return access;
-  })
-  .finally(() => {
-    refreshPromise = null;
-  });
-
-
-}
-
-return refreshPromise;
-}
-
-api.interceptors.request.use(
-(config) => {
-const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-
-
-if (accessToken) {
-  config.headers.Authorization = `Bearer ${accessToken}`;
-}
-
-return config;
-
-
-},
-(error) => Promise.reject(error),
+    return config;
+  },
+  (error) => Promise.reject(error),
 );
+
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const subscribeTokenRefresh = (callback) => {
+  refreshSubscribers.push(callback);
+};
+
+const onRefreshed = (token) => {
+  refreshSubscribers.forEach((callback) => callback(token));
+  refreshSubscribers = [];
+};
 
 api.interceptors.response.use(
-(response) => response,
+  (response) => response,
 
-async (error) => {
-const originalRequest = error.config;
+  async (error) => {
+    const originalRequest = error.config;
 
+    if (
+      error.response?.status === 401 &&
+      !originalRequest?._retry &&
+      !originalRequest?.url?.includes("/auth/token/")
+    ) {
+      originalRequest._retry = true;
 
-if (
-  error.response?.status !== 401 ||
-  originalRequest?._retry ||
-  originalRequest?.url?.includes("/auth/token/")
-) {
-  return Promise.reject(error);
-}
+      if (!isRefreshing) {
+        isRefreshing = true;
 
-originalRequest._retry = true;
+        try {
+          const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
 
-try {
-  const newAccessToken = await refreshAccessToken();
+          if (!refreshToken) {
+            throw new Error("No refresh token available");
+          }
 
-  originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          const response = await axios.post(
+            `${API_BASE_URL}/auth/token/refresh/`,
+            {
+              refresh: refreshToken,
+            },
+          );
 
-  return api(originalRequest);
-} catch (refreshError) {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
+          const newAccessToken = response.data.access;
 
-  return Promise.reject(refreshError);
-}
+          localStorage.setItem(
+            ACCESS_TOKEN_KEY,
+            newAccessToken,
+          );
 
+          if (response.data.refresh) {
+            localStorage.setItem(
+              REFRESH_TOKEN_KEY,
+              response.data.refresh,
+            );
+          }
 
-},
+          onRefreshed(newAccessToken);
+
+          isRefreshing = false;
+
+          originalRequest.headers.Authorization =
+            `Bearer ${newAccessToken}`;
+
+          return api(originalRequest);
+        } catch (refreshError) {
+          isRefreshing = false;
+          refreshSubscribers = [];
+
+          localStorage.removeItem(ACCESS_TOKEN_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+
+          window.location.href = "/login";
+
+          return Promise.reject(refreshError);
+        }
+      }
+
+      return new Promise((resolve) => {
+        subscribeTokenRefresh((token) => {
+          originalRequest.headers.Authorization =
+            `Bearer ${token}`;
+
+          resolve(api(originalRequest));
+        });
+      });
+    }
+
+    return Promise.reject(error);
+  },
 );
+
+export { API_BASE_URL };
 
 export default api;

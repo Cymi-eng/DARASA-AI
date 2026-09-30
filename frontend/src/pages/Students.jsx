@@ -5,10 +5,13 @@ import {
   Check,
   CheckCircle2,
   GraduationCap,
+  KeyRound,
   Loader2,
+  LockKeyhole,
   Pencil,
   Plus,
   Search,
+  UserCircle2,
   Users,
   X,
 } from "lucide-react";
@@ -35,6 +38,9 @@ const EMPTY_FORM = {
   guardian_name: "",
   guardian_phone: "",
   classroom: "",
+  account_username: "",
+  account_password: "",
+  account_password_confirmation: "",
 };
 
 function getGradeLabel(value) {
@@ -220,6 +226,7 @@ function Students() {
         student.admission_number,
         student.guardian_name,
         student.guardian_phone,
+        student.account_username,
         getGradeLabel(student.grade),
         getClassroomName(student),
       ];
@@ -271,6 +278,9 @@ function Students() {
       guardian_name: student.guardian_name ?? "",
       guardian_phone: student.guardian_phone ?? "",
       classroom: getClassroomId(student),
+      account_username: student.account_username ?? "",
+      account_password: "",
+      account_password_confirmation: "",
     });
 
     setFormError("");
@@ -307,6 +317,92 @@ function Students() {
       return;
     }
 
+    const hasExistingAccount = Boolean(
+      editingStudent?.has_account ||
+        editingStudent?.account_username
+    );
+
+    const username = form.account_username.trim();
+    const password = form.account_password;
+    const passwordConfirmation =
+      form.account_password_confirmation;
+
+    if (!editingStudent) {
+      if (!username) {
+        setFormError(
+          "Please create a username for the student's login account."
+        );
+        return;
+      }
+
+      if (!password) {
+        setFormError(
+          "Please create a password for the student's login account."
+        );
+        return;
+      }
+
+      if (password.length < 8) {
+        setFormError(
+          "The student password must be at least 8 characters."
+        );
+        return;
+      }
+
+      if (password !== passwordConfirmation) {
+        setFormError(
+          "The password and confirmation password do not match."
+        );
+        return;
+      }
+    }
+
+    if (editingStudent && !hasExistingAccount) {
+      if (!username) {
+        setFormError(
+          "Please enter a username to create the student's login account."
+        );
+        return;
+      }
+
+      if (!password) {
+        setFormError(
+          "Please enter a password to create the student's login account."
+        );
+        return;
+      }
+
+      if (password.length < 8) {
+        setFormError(
+          "The student password must be at least 8 characters."
+        );
+        return;
+      }
+
+      if (password !== passwordConfirmation) {
+        setFormError(
+          "The password and confirmation password do not match."
+        );
+        return;
+      }
+    }
+
+    if (editingStudent && hasExistingAccount && password) {
+      if (password.length < 8) {
+        setFormError(
+          "The new password must be at least 8 characters."
+        );
+        return;
+      }
+
+      if (password !== passwordConfirmation) {
+        setFormError(
+          "The new password and confirmation password do not match."
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -323,20 +419,34 @@ function Students() {
           : null,
       };
 
+      if (username) {
+        payload.account_username = username;
+      }
+
+      if (password) {
+        payload.account_password = password;
+      }
+
       if (editingStudent) {
         await api.patch(
           `/students/${editingStudent.id}/`,
           payload
         );
 
-        setSuccessMessage(
-          `${form.first_name.trim()} ${form.last_name.trim()} was updated successfully.`
-        );
+        if (password) {
+          setSuccessMessage(
+            `${form.first_name.trim()} ${form.last_name.trim()} was updated and the login password was set successfully.`
+          );
+        } else {
+          setSuccessMessage(
+            `${form.first_name.trim()} ${form.last_name.trim()} was updated successfully.`
+          );
+        }
       } else {
         await api.post("/students/", payload);
 
         setSuccessMessage(
-          `${form.first_name.trim()} ${form.last_name.trim()} was added successfully.`
+          `${form.first_name.trim()} ${form.last_name.trim()} was created with a student login account.`
         );
       }
 
@@ -372,6 +482,11 @@ function Students() {
       student.grade
     )
   ).length;
+
+  const editingHasAccount = Boolean(
+    editingStudent?.has_account ||
+      editingStudent?.account_username
+  );
 
   return (
     <div className="space-y-7">
@@ -797,8 +912,8 @@ function Students() {
 
                   <p className="mt-0.5 text-xs text-[#8A9691]">
                     {editingStudent
-                      ? "Update learner information and classroom placement."
-                      : "Create a new learner record and assign a classroom."}
+                      ? "Update learner information, classroom placement and login access."
+                      : "Create a learner record and their login account."}
                   </p>
                 </div>
               </div>
@@ -1097,6 +1212,227 @@ function Students() {
                 </div>
               </div>
 
+              <div className="border-t border-[#E9E8E1] pt-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFF7E4] text-[#B58A00]">
+                    <KeyRound size={19} />
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-[#17382E]">
+                      Student Login Account
+                    </h3>
+
+                    <p className="mt-1 text-xs leading-5 text-[#7C8984]">
+                      The administrator creates these credentials.
+                      The student will use them on the DARASA-AI
+                      login page to access the Student Portal.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-[#E9E4CF] bg-[#FFFDF5] p-4">
+                  <div className="mb-4 flex items-center gap-2">
+                    {editingHasAccount ? (
+                      <>
+                        <CheckCircle2
+                          size={17}
+                          className="text-[#17633F]"
+                        />
+
+                        <span className="text-sm font-semibold text-[#17633F]">
+                          Login account active
+                        </span>
+
+                        <span className="text-xs text-[#8A9691]">
+                          • Set a new password below to reset access
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <UserCircle2
+                          size={17}
+                          className="text-[#B58A00]"
+                        />
+
+                        <span className="text-sm font-semibold text-[#806600]">
+                          Create student login
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="student_account_username"
+                        className="mb-2 block text-sm font-semibold text-[#405650]"
+                      >
+                        Username{" "}
+                        <span className="text-[#B33A31]">
+                          *
+                        </span>
+                      </label>
+
+                      <div className="relative">
+                        <UserCircle2
+                          size={18}
+                          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8A9691]"
+                        />
+
+                        <input
+                          id="student_account_username"
+                          type="text"
+                          value={form.account_username}
+                          onChange={(event) =>
+                            updateField(
+                              "account_username",
+                              event.target.value
+                            )
+                          }
+                          placeholder="e.g. amani001"
+                          autoComplete="off"
+                          required
+                          className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white pl-11 pr-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                        />
+                      </div>
+
+                      <p className="mt-1.5 text-[11px] text-[#8A9691]">
+                        This is the username the student will enter
+                        when logging in.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="student_account_password"
+                        className="mb-2 block text-sm font-semibold text-[#405650]"
+                      >
+                        {editingHasAccount
+                          ? "New Password"
+                          : "Password"}{" "}
+                        <span className="text-[#B33A31]">
+                          {!editingHasAccount || form.account_password
+                            ? "*"
+                            : ""}
+                        </span>
+                      </label>
+
+                      <div className="relative">
+                        <LockKeyhole
+                          size={18}
+                          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8A9691]"
+                        />
+
+                        <input
+                          id="student_account_password"
+                          type="password"
+                          value={form.account_password}
+                          onChange={(event) =>
+                            updateField(
+                              "account_password",
+                              event.target.value
+                            )
+                          }
+                          placeholder={
+                            editingHasAccount
+                              ? "Enter new password"
+                              : "Create password"
+                          }
+                          autoComplete="new-password"
+                          minLength={8}
+                          required={
+                            !editingHasAccount
+                          }
+                          className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white pl-11 pr-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                        />
+                      </div>
+
+                      <p className="mt-1.5 text-[11px] text-[#8A9691]">
+                        Minimum 8 characters.
+                        {editingHasAccount
+                          ? " Leave blank to keep the current password."
+                          : ""}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="student_account_password_confirmation"
+                        className="mb-2 block text-sm font-semibold text-[#405650]"
+                      >
+                        Confirm Password{" "}
+                        <span className="text-[#B33A31]">
+                          {!editingHasAccount ||
+                          form.account_password
+                            ? "*"
+                            : ""}
+                        </span>
+                      </label>
+
+                      <div className="relative">
+                        <LockKeyhole
+                          size={18}
+                          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8A9691]"
+                        />
+
+                        <input
+                          id="student_account_password_confirmation"
+                          type="password"
+                          value={
+                            form.account_password_confirmation
+                          }
+                          onChange={(event) =>
+                            updateField(
+                              "account_password_confirmation",
+                              event.target.value
+                            )
+                          }
+                          placeholder={
+                            editingHasAccount
+                              ? "Confirm new password"
+                              : "Confirm password"
+                          }
+                          autoComplete="new-password"
+                          required={
+                            !editingHasAccount ||
+                            Boolean(form.account_password)
+                          }
+                          className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white pl-11 pr-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {editingHasAccount ? (
+                    <div className="mt-4 flex items-start gap-2 rounded-lg bg-[#F1F7F2] px-3 py-2.5 text-xs leading-5 text-[#52645D]">
+                      <LockKeyhole
+                        size={15}
+                        className="mt-0.5 shrink-0 text-[#0B5D43]"
+                      />
+
+                      <span>
+                        The existing password is never displayed.
+                        Enter a new password only when you want to
+                        reset the student's login access.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex items-start gap-2 rounded-lg bg-[#F1F7F2] px-3 py-2.5 text-xs leading-5 text-[#52645D]">
+                      <KeyRound
+                        size={15}
+                        className="mt-0.5 shrink-0 text-[#0B5D43]"
+                      />
+
+                      <span>
+                        The student will use this username and
+                        password on the DARASA-AI login page.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex flex-col-reverse gap-3 border-t border-[#E9E8E1] pt-5 sm:flex-row sm:justify-end">
                 <button
                   type="button"
@@ -1118,6 +1454,7 @@ function Students() {
                         size={18}
                         className="animate-spin"
                       />
+
                       {editingStudent
                         ? "Saving..."
                         : "Creating..."}
