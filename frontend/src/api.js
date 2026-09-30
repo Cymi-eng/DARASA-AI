@@ -1,92 +1,103 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api";
+const API_BASE_URL =
+import.meta.env.VITE_API_BASE_URL ||
+"http://127.0.0.1:8000/api";
 
 const ACCESS_TOKEN_KEY = "darasa_access_token";
 const REFRESH_TOKEN_KEY = "darasa_refresh_token";
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+baseURL: API_BASE_URL,
+headers: {
+"Content-Type": "application/json",
+},
 });
 
 let refreshPromise = null;
 
 async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
 
-  if (!refreshToken) {
-    throw new Error("No refresh token available.");
-  }
+if (!refreshToken) {
+throw new Error("No refresh token available.");
+}
 
-  if (!refreshPromise) {
-    refreshPromise = axios
-      .post(`${API_BASE_URL}/auth/token/refresh/`, {
-        refresh: refreshToken,
-      })
-      .then((response) => {
-        const { access, refresh } = response.data;
+if (!refreshPromise) {
+refreshPromise = axios
+.post(`${API_BASE_URL}/auth/token/refresh/`, {
+refresh: refreshToken,
+})
+.then((response) => {
+const { access, refresh } = response.data;
 
-        localStorage.setItem(ACCESS_TOKEN_KEY, access);
 
-        if (refresh) {
-          localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
-        }
+    localStorage.setItem(ACCESS_TOKEN_KEY, access);
 
-        return access;
-      })
-      .finally(() => {
-        refreshPromise = null;
-      });
-  }
+    if (refresh) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+    }
 
-  return refreshPromise;
+    return access;
+  })
+  .finally(() => {
+    refreshPromise = null;
+  });
+
+
+}
+
+return refreshPromise;
 }
 
 api.interceptors.request.use(
-  (config) => {
-    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+(config) => {
+const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
 
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
-    }
 
-    return config;
-  },
-  (error) => Promise.reject(error),
+if (accessToken) {
+  config.headers.Authorization = `Bearer ${accessToken}`;
+}
+
+return config;
+
+
+},
+(error) => Promise.reject(error),
 );
 
 api.interceptors.response.use(
-  (response) => response,
+(response) => response,
 
-  async (error) => {
-    const originalRequest = error.config;
+async (error) => {
+const originalRequest = error.config;
 
-    if (
-      error.response?.status !== 401 ||
-      originalRequest?._retry ||
-      originalRequest?.url?.includes("/auth/token/")
-    ) {
-      return Promise.reject(error);
-    }
 
-    originalRequest._retry = true;
+if (
+  error.response?.status !== 401 ||
+  originalRequest?._retry ||
+  originalRequest?.url?.includes("/auth/token/")
+) {
+  return Promise.reject(error);
+}
 
-    try {
-      const newAccessToken = await refreshAccessToken();
+originalRequest._retry = true;
 
-      originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+try {
+  const newAccessToken = await refreshAccessToken();
 
-      return api(originalRequest);
-    } catch (refreshError) {
-      localStorage.removeItem(ACCESS_TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
+  originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
-      return Promise.reject(refreshError);
-    }
-  },
+  return api(originalRequest);
+} catch (refreshError) {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+
+  return Promise.reject(refreshError);
+}
+
+
+},
 );
 
 export default api;
