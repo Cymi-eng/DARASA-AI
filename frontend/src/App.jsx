@@ -14,7 +14,6 @@ import Students from "./pages/Students.jsx";
 import TeacherPortal from "./pages/TeacherPortal.jsx";
 import Teachers from "./pages/Teachers.jsx";
 
-
 function getRoleHome(role) {
   switch (role) {
     case "STUDENT":
@@ -33,23 +32,22 @@ function getRoleHome(role) {
   }
 }
 
-
-function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <AppShell>{children}</AppShell>;
-}
-
-
-function RoleRoute({ allowedRoles, children }) {
-  const { isAuthenticated, user } = useAuth();
+function RoleRoute({
+  allowedRoles,
+  children,
+}) {
+  const {
+    isAuthenticated,
+    user,
+  } = useAuth();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
   }
 
   if (!user) {
@@ -65,12 +63,18 @@ function RoleRoute({ allowedRoles, children }) {
     );
   }
 
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      {children}
+    </AppShell>
+  );
 }
 
-
 function LoginRoute() {
-  const { isAuthenticated, user } = useAuth();
+  const {
+    isAuthenticated,
+    user,
+  } = useAuth();
 
   if (!isAuthenticated) {
     return <Login />;
@@ -88,17 +92,26 @@ function LoginRoute() {
   );
 }
 
+function StudentRoute({
+  section = "overview",
+}) {
+  return (
+    <RoleRoute allowedRoles={["STUDENT"]}>
+      <StudentPortal section={section} />
+    </RoleRoute>
+  );
+}
 
 function App() {
   return (
     <Routes>
-      {/* Authentication */}
       <Route
         path="/login"
         element={<LoginRoute />}
       />
 
-      {/* Admin */}
+      {/* ADMIN */}
+
       <Route
         path="/dashboard"
         element={
@@ -186,7 +199,6 @@ function App() {
         }
       />
 
-      {/* Finance */}
       <Route
         path="/finance"
         element={
@@ -202,35 +214,61 @@ function App() {
         }
       />
 
-      {/* Teacher portal */}
+      {/* TEACHER */}
+
       <Route
         path="/teacher-portal"
         element={
-          <RoleRoute
-            allowedRoles={[
-              "TEACHER",
-            ]}
-          >
+          <RoleRoute allowedRoles={["TEACHER"]}>
             <TeacherPortal />
           </RoleRoute>
         }
       />
 
-      {/* Student portal */}
+      {/* STUDENT */}
+
       <Route
         path="/student-portal"
         element={
-          <RoleRoute
-            allowedRoles={[
-              "STUDENT",
-            ]}
-          >
-            <StudentPortal />
-          </RoleRoute>
+          <StudentRoute section="overview" />
         }
       />
 
-      {/* Unknown routes */}
+      <Route
+        path="/student-portal/progress"
+        element={
+          <StudentRoute section="progress" />
+        }
+      />
+
+      <Route
+        path="/student-portal/assessments"
+        element={
+          <StudentRoute section="assessments" />
+        }
+      />
+
+      <Route
+        path="/student-portal/recommendations"
+        element={
+          <StudentRoute section="recommendations" />
+        }
+      />
+
+      <Route
+        path="/student-portal/fees"
+        element={
+          <StudentRoute section="fees" />
+        }
+      />
+
+      <Route
+        path="/student-portal/notifications"
+        element={
+          <StudentRoute section="notifications" />
+        }
+      />
+
       <Route
         path="*"
         element={
@@ -243,6 +281,5 @@ function App() {
     </Routes>
   );
 }
-
 
 export default App;

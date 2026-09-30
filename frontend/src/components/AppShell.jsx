@@ -10,8 +10,8 @@ import {
   Menu,
   School,
   Settings,
-  Wallet,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -65,27 +65,27 @@ const STUDENT_NAVIGATION = [
   },
   {
     label: "My Progress",
-    path: "/student-portal",
+    path: "/student-portal/progress",
     icon: GraduationCap,
   },
   {
     label: "My Assessments",
-    path: "/student-portal",
+    path: "/student-portal/assessments",
     icon: BookOpenCheck,
   },
   {
     label: "Recommendations",
-    path: "/student-portal",
+    path: "/student-portal/recommendations",
     icon: BarChart3,
   },
   {
     label: "Fees",
-    path: "/student-portal",
+    path: "/student-portal/fees",
     icon: Wallet,
   },
   {
     label: "Notifications",
-    path: "/student-portal",
+    path: "/student-portal/notifications",
     icon: Bell,
   },
 ];
@@ -179,47 +179,22 @@ function getRoleWorkspace(role) {
   }
 }
 
-function getInitials(user) {
-  if (!user) {
-    return "DS";
+function getRoleHome(role) {
+  switch (role) {
+    case "STUDENT":
+      return "/student-portal";
+
+    case "TEACHER":
+      return "/teacher-portal";
+
+    case "BURSAR":
+      return "/finance";
+
+    case "ADMIN":
+    case "PLATFORM_ADMIN":
+    default:
+      return "/dashboard";
   }
-
-  const firstName =
-    user.first_name ||
-    user.firstName ||
-    "";
-
-  const lastName =
-    user.last_name ||
-    user.lastName ||
-    "";
-
-  const fullName =
-    user.full_name ||
-    user.name ||
-    "";
-
-  if (firstName || lastName) {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`
-      .toUpperCase();
-  }
-
-  if (fullName) {
-    const parts = fullName.trim().split(/\s+/);
-
-    if (parts.length >= 2) {
-      return `${parts[0].charAt(0)}${parts[1].charAt(0)}`
-        .toUpperCase();
-    }
-
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
-  if (user.username) {
-    return user.username.slice(0, 2).toUpperCase();
-  }
-
-  return "DS";
 }
 
 function getDisplayName(user) {
@@ -236,11 +211,26 @@ function getDisplayName(user) {
   }
 
   if (user.first_name || user.last_name) {
-    return `${user.first_name || ""} ${user.last_name || ""}`
-      .trim();
+    return `${user.first_name || ""} ${user.last_name || ""}`.trim();
   }
 
   return user.username || "User";
+}
+
+function getInitials(user) {
+  const name = getDisplayName(user);
+
+  if (!name || name === "User") {
+    return "DS";
+  }
+
+  const parts = name.trim().split(/\s+/);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+
+  return parts[0].slice(0, 2).toUpperCase();
 }
 
 function getSchoolName(user) {
@@ -248,24 +238,16 @@ function getSchoolName(user) {
     return "Darasa-AI";
   }
 
-  if (user.school_name) {
-    return user.school_name;
-  }
-
-  if (user.school?.name) {
-    return user.school.name;
-  }
-
-  return "Darasa-AI";
+  return (
+    user.school_name ||
+    user.school?.name ||
+    "Darasa-AI"
+  );
 }
 
 function isActivePath(path, currentPath) {
   if (path === "/student-portal") {
     return currentPath === "/student-portal";
-  }
-
-  if (path === "/teacher-portal") {
-    return currentPath === "/teacher-portal";
   }
 
   return currentPath === path;
@@ -289,8 +271,8 @@ function AppShell({ children }) {
   const roleLabel = getRoleLabel(role);
   const workspaceLabel = getRoleWorkspace(role);
   const displayName = getDisplayName(user);
-  const schoolName = getSchoolName(user);
   const initials = getInitials(user);
+  const schoolName = getSchoolName(user);
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -323,14 +305,12 @@ function AppShell({ children }) {
     });
   };
 
-  const handleMobileNavigation = (path) => {
-    setSidebarOpen(false);
-    navigate(path);
+  const handleBrandClick = () => {
+    navigate(getRoleHome(role));
   };
 
   return (
     <div className="min-h-screen bg-[#F5F7F3] text-[#17382E]">
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <button
           type="button"
@@ -340,22 +320,18 @@ function AppShell({ children }) {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={[
           "fixed inset-y-0 left-0 z-50 flex flex-col",
           "border-r border-[#E4E8E2]",
           "bg-white",
           "transition-all duration-300",
-          collapsed
-            ? "w-[76px]"
-            : "w-[264px]",
+          collapsed ? "w-[76px]" : "w-[264px]",
           sidebarOpen
             ? "translate-x-0"
             : "-translate-x-full lg:translate-x-0",
         ].join(" ")}
       >
-        {/* Brand */}
         <div
           className={[
             "flex h-[76px] items-center border-b border-[#E8EBE6]",
@@ -366,20 +342,10 @@ function AppShell({ children }) {
         >
           <button
             type="button"
-            onClick={() => navigate(
-              role === "STUDENT"
-                ? "/student-portal"
-                : role === "TEACHER"
-                  ? "/teacher-portal"
-                  : role === "BURSAR"
-                    ? "/finance"
-                    : "/dashboard"
-            )}
+            onClick={handleBrandClick}
             className={[
               "flex items-center gap-3",
-              collapsed
-                ? "justify-center"
-                : "",
+              collapsed ? "justify-center" : "",
             ].join(" ")}
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0B5D43] text-white shadow-sm">
@@ -409,7 +375,6 @@ function AppShell({ children }) {
           </button>
         </div>
 
-        {/* Workspace identity */}
         {!collapsed && (
           <div className="border-b border-[#E8EBE6] px-5 py-4">
             <div className="rounded-xl bg-[#F3F7F3] px-3.5 py-3">
@@ -436,7 +401,6 @@ function AppShell({ children }) {
           </div>
         )}
 
-        {/* Navigation */}
         <div className="flex-1 overflow-y-auto px-3 py-5">
           {!collapsed && (
             <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-[#9AA59F]">
@@ -447,6 +411,7 @@ function AppShell({ children }) {
           <nav className="space-y-1">
             {navigation.map((item) => {
               const Icon = item.icon;
+
               const active = isActivePath(
                 item.path,
                 location.pathname,
@@ -456,8 +421,11 @@ function AppShell({ children }) {
                 <NavLink
                   key={item.label}
                   to={item.path}
-                  title={collapsed ? item.label : undefined}
-                  onClick={() => setSidebarOpen(false)}
+                  title={
+                    collapsed
+                      ? item.label
+                      : undefined
+                  }
                   className={[
                     "group flex items-center rounded-xl transition-all",
                     collapsed
@@ -496,14 +464,16 @@ function AppShell({ children }) {
           </nav>
         </div>
 
-        {/* Bottom navigation */}
         <div className="border-t border-[#E8EBE6] p-3">
-          <NavLink
-            to="/settings"
-            title={collapsed ? "Settings" : undefined}
-            onClick={() => setSidebarOpen(false)}
+          <button
+            type="button"
+            onClick={() => {
+              if (role === "STUDENT") {
+                navigate("/student-portal");
+              }
+            }}
             className={[
-              "flex items-center rounded-xl text-[#66756E] transition hover:bg-[#F4F6F2] hover:text-[#17382E]",
+              "flex w-full items-center rounded-xl text-[#66756E] transition hover:bg-[#F4F6F2] hover:text-[#17382E]",
               collapsed
                 ? "justify-center px-3 py-3"
                 : "gap-3 px-3 py-2.5",
@@ -516,12 +486,16 @@ function AppShell({ children }) {
                 Settings
               </span>
             )}
-          </NavLink>
+          </button>
 
           <button
             type="button"
             onClick={handleLogout}
-            title={collapsed ? "Sign out" : undefined}
+            title={
+              collapsed
+                ? "Sign out"
+                : undefined
+            }
             className={[
               "mt-1 flex w-full items-center rounded-xl text-[#8A625F] transition hover:bg-[#FBF2F1] hover:text-[#8C4039]",
               collapsed
@@ -538,10 +512,11 @@ function AppShell({ children }) {
             )}
           </button>
 
-          {/* Collapse button */}
           <button
             type="button"
-            onClick={() => setCollapsed((value) => !value)}
+            onClick={() =>
+              setCollapsed((value) => !value)
+            }
             className="mt-2 hidden w-full items-center justify-center rounded-xl border border-[#E5E9E4] py-2.5 text-[#7D8A84] transition hover:bg-[#F5F7F3] hover:text-[#17382E] lg:flex"
             aria-label={
               collapsed
@@ -563,7 +538,6 @@ function AppShell({ children }) {
         </div>
       </aside>
 
-      {/* Main area */}
       <div
         className={[
           "min-h-screen transition-all duration-300",
@@ -572,10 +546,8 @@ function AppShell({ children }) {
             : "lg:pl-[264px]",
         ].join(" ")}
       >
-        {/* Header */}
         <header className="sticky top-0 z-30 flex h-[76px] items-center justify-between border-b border-[#E4E8E2] bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            {/* Mobile menu */}
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
@@ -597,12 +569,13 @@ function AppShell({ children }) {
           </div>
 
           <div className="flex items-center gap-2.5 sm:gap-3">
-            {/* Notifications */}
             <button
               type="button"
               onClick={() => {
                 if (role === "STUDENT") {
-                  navigate("/student-portal");
+                  navigate(
+                    "/student-portal/notifications",
+                  );
                 }
               }}
               className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-[#E4E8E2] text-[#64736C] transition hover:bg-[#F4F6F2] hover:text-[#17382E]"
@@ -611,7 +584,6 @@ function AppShell({ children }) {
               <Bell size={18} />
             </button>
 
-            {/* User */}
             <div className="hidden items-center gap-2.5 sm:flex">
               <div className="text-right">
                 <p className="max-w-[160px] truncate text-xs font-bold text-[#294A3F]">
@@ -628,14 +600,12 @@ function AppShell({ children }) {
               </div>
             </div>
 
-            {/* Mobile avatar */}
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0B5D43] text-xs font-extrabold text-white sm:hidden">
               {initials}
             </div>
           </div>
         </header>
 
-        {/* Page content */}
         <main className="min-h-[calc(100vh-76px)] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
           {children}
         </main>
