@@ -1,193 +1,115 @@
-from django.contrib.auth.models import User
-from rest_framework import serializers
+from rest_framework import permissions
 
-from ..models import Student, School, UserProfile
+from ..models import Student, UserProfile
+from ..permissions import (
+IsAdminOrTeacher,
+IsSchoolAdmin,
+IsStudent,
+)
+from ..serializers import StudentSerializer
+from .base import SchoolScopedViewSet
+
+class StudentViewSet(SchoolScopedViewSet):
+queryset = Student.objects.all()
+serializer_class = StudentSerializer
 
 
-class StudentSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        required=False,
-        allow_null=True,
+def _is_student(self):
+    user = self.request.user
+
+    if not user.is_authenticated:
+        return False
+
+    profile = getattr(user, "profile", None)
+
+    return (
+        profile is not None
+        and profile.role == UserProfile.STUDENT
     )
 
-    class Meta:
-        model = Student
-        fields = [
-            "id",
+def get_permissions(self):
+    user = self.request.user
+
+    if self._is_student():
+        if self.request.method in permissions.SAFE_METHODS:
+            return [IsStudent()]
+
+        return [permissions.IsAdminUser()]
+
+    if self.request.method in permissions.SAFE_METHODS:
+        return [IsAdminOrTeacher()]
+
+    return [IsSchoolAdmin()]
+
+def get_queryset(self):
+    user = self.request.user
+
+    queryset = (
+        Student.objects
+        .select_related(
             "user",
-            "first_name",
-            "last_name",
-            "admission_number",
-            "grade",
-            "date_of_birth",
-            "guardian_name",
-            "guardian_phone",
             "school",
             "classroom",
-            "created_at",
-        ]
-        read_only_fields = [
-            "id",
-            "created_at",
-        ]
+        )
+        .prefetch_related(
+            "classroom__teachers",
+        )
+    )
 
-    def validate(self, attrs):
-        request = self.context.get("request")
+    if user.is_superuser:
+        filtered = queryset
+    else:
+        profile = getattr(user, "profile", None)
 
-        if not request or not request.user.is_authenticated:
-            raise serializers.ValidationError(
-                "Authentication is required."
+        if profile is None:
+            return queryset.none()
+
+        if profile.role == UserProfile.STUDENT:
+            filtered = queryset.filter(
+                user=user,
             )
 
-        if request.user.is_superuser:
-            return attrs
-
-        profile = getattr(request.user, "profile", None)
-
-        if not profile or not profile.school_id:
-            raise serializers.ValidationError(
-                "Your account is not associated with a school."
+        elif profile.role == UserProfile.TEACHER:
+            filtered = queryset.filter(
+                school_id=profile.school_id,
+                classroom__teachers__user=user,
             )
 
-        school = attrs.get("school")
-
-        if school and school.id != profile.school_id:
-            raise serializers.ValidationError(
-                {
-                    "school": (
-                        "You cannot create or assign a "
-                        "student to another school."
-                    )
-                }
+        else:
+            filtered = queryset.filter(
+                school_id=profile.school_id,
             )
 
-        classroom = attrs.get("classroom")
+    grade = self.request.query_params.get("grade")
 
-        if (
-            classroom
-            and classroom.school_id != profile.school_id
-        ):
-            raise serializers.ValidationError(
-                {
-                    "classroom": (
-                        "Classroom does not belong "
-                        "to your school."
-                    )
-                }
-            )
+    if grade:
+        filtered = filtered.filter(
+            grade=grade,
+        )
 
-        # -------------------------------------------------
-        # TEACHER RESTRICTIONS
-        # -------------------------------------------------
-        if profile.role == "TEACHER":
-            # A teacher must assign every new student
-            # to one of their own classrooms.
-            if classroom is None:
-                raise serializers.ValidationError(
-                    {
-                        "classroom": (
-                            "You must assign the student "
-                            "to one of your classrooms."
-                        )
-                    }
-                )
+    classroom = self.request.query_params.get(
+        "classroom"
+    )
 
-            # The classroom must actually be assigned
-            # to this teacher.
-            teacher = getattr(
-                request.user,
-                "teacher",
-                None,
-            )
+    if classroom:
+        filtered = filtered.filter(
+            classroom_id=classroom,
+        )
 
-            if teacher is None:
-                raise serializers.ValidationError(
-                    {
-                        "classroom": (
-                            "Your teacher profile could "
-                            "not be found."
-                        )
-                    }
-                )
+    return filtered.order_by(
+        "first_name",
+        "last_name",
+    )
 
-            if not teacher.classrooms.filter(
-                pk=classroom.pk
-            ).exists():
-                raise serializers.ValidationError(
-                    {
-                        "classroom": (
-                            "You can only assign students "
-                            "to classrooms assigned to you."
-                        )
-                    }
-                )
+def perform_create(self, serializer):
+    school = self.get_school()
 
-        # -------------------------------------------------
-        # STUDENT USER VALIDATION
-        # -------------------------------------------------
-        student_user = attrs.get("user")
+    if school is None and not self.request.user.is_superuser:
+        raise permissions.PermissionDenied(
+            "Your account is not assigned to a school."
+        )
 
-        if student_user:
-            student_profile = getattr(
-                student_user,
-                "profile",
-                None,
-            )
+    serializer.save(
+        school=school,
+    )
 
-            if not student_profile:
-                raise serializers.ValidationError(
-                    {
-                        "user": (
-                            "The selected user does not "
-                            "have a user profile."
-                        )
-                    }
-                )
-
-            if student_profile.role != UserProfile.STUDENT:
-                raise serializers.ValidationError(
-                    {
-                        "user": (
-                            "The selected user must have "
-                            "the STUDENT role."
-                        )
-                    }
-                )
-
-            if (
-                student_profile.school_id
-                != profile.school_id
-            ):
-                raise serializers.ValidationError(
-                    {
-                        "user": (
-                            "Student user must belong "
-                            "to your school."
-                        )
-                    }
-                )
-
-            existing_student = (
-                Student.objects.filter(
-                    user=student_user
-                )
-                .exclude(
-                    pk=self.instance.pk
-                    if self.instance
-                    else None
-                )
-                .first()
-            )
-
-            if existing_student:
-                raise serializers.ValidationError(
-                    {
-                        "user": (
-                            "This user is already linked "
-                            "to another student."
-                        )
-                    }
-                )
-
-        return attrs
