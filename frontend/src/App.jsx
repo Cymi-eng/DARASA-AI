@@ -14,6 +14,26 @@ import Students from "./pages/Students.jsx";
 import TeacherPortal from "./pages/TeacherPortal.jsx";
 import Teachers from "./pages/Teachers.jsx";
 
+
+function getRoleHome(role) {
+  switch (role) {
+    case "STUDENT":
+      return "/student-portal";
+
+    case "TEACHER":
+      return "/teacher-portal";
+
+    case "BURSAR":
+      return "/finance";
+
+    case "PLATFORM_ADMIN":
+    case "ADMIN":
+    default:
+      return "/dashboard";
+  }
+}
+
+
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
 
@@ -24,108 +44,198 @@ function ProtectedRoute({ children }) {
   return <AppShell>{children}</AppShell>;
 }
 
-function App() {
-  const { isAuthenticated } = useAuth();
+
+function RoleRoute({ allowedRoles, children }) {
+  const { isAuthenticated, user } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    return (
+      <Navigate
+        to={getRoleHome(user.role)}
+        replace
+      />
+    );
+  }
+
+  return <AppShell>{children}</AppShell>;
+}
+
+
+function LoginRoute() {
+  const { isAuthenticated, user } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
+    <Navigate
+      to={getRoleHome(user.role)}
+      replace
+    />
+  );
+}
+
+
+function App() {
+  return (
     <Routes>
+      {/* Authentication */}
       <Route
         path="/login"
-        element={
-          isAuthenticated ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <Login />
-          )
-        }
+        element={<LoginRoute />}
       />
 
+      {/* Admin */}
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <RoleRoute
+            allowedRoles={[
+              "ADMIN",
+              "PLATFORM_ADMIN",
+            ]}
+          >
             <Dashboard />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
       <Route
         path="/students"
         element={
-          <ProtectedRoute>
+          <RoleRoute
+            allowedRoles={[
+              "ADMIN",
+              "PLATFORM_ADMIN",
+              "TEACHER",
+            ]}
+          >
             <Students />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
       <Route
         path="/classrooms"
         element={
-          <ProtectedRoute>
+          <RoleRoute
+            allowedRoles={[
+              "ADMIN",
+              "PLATFORM_ADMIN",
+              "TEACHER",
+            ]}
+          >
             <Classrooms />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
       <Route
         path="/teachers"
         element={
-          <ProtectedRoute>
+          <RoleRoute
+            allowedRoles={[
+              "ADMIN",
+              "PLATFORM_ADMIN",
+            ]}
+          >
             <Teachers />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
       <Route
         path="/competencies"
         element={
-          <ProtectedRoute>
+          <RoleRoute
+            allowedRoles={[
+              "ADMIN",
+              "PLATFORM_ADMIN",
+              "TEACHER",
+            ]}
+          >
             <Competencies />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
       <Route
         path="/analytics"
         element={
-          <ProtectedRoute>
+          <RoleRoute
+            allowedRoles={[
+              "ADMIN",
+              "PLATFORM_ADMIN",
+            ]}
+          >
             <Analytics />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
+      {/* Finance */}
       <Route
         path="/finance"
         element={
-          <ProtectedRoute>
+          <RoleRoute
+            allowedRoles={[
+              "ADMIN",
+              "PLATFORM_ADMIN",
+              "BURSAR",
+            ]}
+          >
             <Finance />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
+      {/* Teacher portal */}
       <Route
         path="/teacher-portal"
         element={
-          <ProtectedRoute>
+          <RoleRoute
+            allowedRoles={[
+              "TEACHER",
+            ]}
+          >
             <TeacherPortal />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
+      {/* Student portal */}
       <Route
         path="/student-portal"
         element={
-          <ProtectedRoute>
+          <RoleRoute
+            allowedRoles={[
+              "STUDENT",
+            ]}
+          >
             <StudentPortal />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
+      {/* Unknown routes */}
       <Route
         path="*"
         element={
           <Navigate
-            to={isAuthenticated ? "/dashboard" : "/login"}
+            to="/login"
             replace
           />
         }
@@ -133,5 +243,6 @@ function App() {
     </Routes>
   );
 }
+
 
 export default App;
