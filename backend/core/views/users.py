@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 
-from rest_framework import permissions, status, viewsets
+from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -25,11 +25,8 @@ class UserAccountViewSet(viewsets.ModelViewSet):
 
     Superusers have global access.
 
-    The /me/ endpoint is available to every authenticated
-    user and returns their portal role and school context.
-
-    Students can also use /me/settings/ to update
-    their own username and password.
+    The /me/ endpoint is available to every
+    authenticated user.
     """
 
     queryset = User.objects.all().select_related(
@@ -40,7 +37,7 @@ class UserAccountViewSet(viewsets.ModelViewSet):
     serializer_class = UserAccountSerializer
 
     permission_classes = [
-        IsSchoolAdmin
+        IsSchoolAdmin,
     ]
 
     def get_queryset(self):
@@ -50,7 +47,19 @@ class UserAccountViewSet(viewsets.ModelViewSet):
                 "profile__school",
             )
 
-        school = self.request.user.profile.school
+        profile = getattr(
+            self.request.user,
+            "profile",
+            None,
+        )
+
+        if profile is None:
+            return User.objects.none()
+
+        school = profile.school
+
+        if school is None:
+            return User.objects.none()
 
         return User.objects.filter(
             profile__school=school
@@ -84,8 +93,7 @@ class UserAccountViewSet(viewsets.ModelViewSet):
         )
 
         return Response(
-            serializer.data,
-            status=status.HTTP_200_OK,
+            serializer.data
         )
 
     @action(
@@ -98,15 +106,17 @@ class UserAccountViewSet(viewsets.ModelViewSet):
     )
     def settings(self, request):
         """
-        Update the authenticated user's own
-        username and/or password.
+        Update the currently authenticated user's
+        own account settings.
         """
 
-        serializer = (
-            StudentAccountSettingsSerializer(
-                instance=request.user,
-                data=request.data,
-            )
+        serializer = StudentAccountSettingsSerializer(
+            instance=request.user,
+            data=request.data,
+            partial=True,
+            context={
+                "request": request,
+            },
         )
 
         serializer.is_valid(
@@ -115,12 +125,10 @@ class UserAccountViewSet(viewsets.ModelViewSet):
 
         serializer.save()
 
+        request.user.refresh_from_db()
+
         return Response(
-            {
-                "detail": (
-                    "Account settings updated successfully."
-                ),
-                "username": request.user.username,
-            },
-            status=status.HTTP_200_OK,
+            CurrentUserSerializer(
+                request.user
+            ).data
         )
