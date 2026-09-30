@@ -1,56 +1,86 @@
+@import "tailwindcss";
+
 /* ================================================================
-   DARASA-AI DARK THEME
-   Professional SaaS / Education Dashboard
+   DARASA-AI GLOBAL THEME SYSTEM
    ================================================================ */
 
-html.dark {
-  color-scheme: dark;
+:root {
+  --darasa-page-bg: #f5f7f4;
+  --darasa-surface: #ffffff;
+  --darasa-surface-soft: #f7f9f6;
+  --darasa-border: #e2e8e3;
 
-  --darasa-page-bg: #0b1110;
-  --darasa-surface: #111918;
-  --darasa-surface-soft: #151f1d;
+  --darasa-text: #17382e;
+  --darasa-text-muted: #718079;
 
-  --darasa-border: #27332f;
+  --darasa-input-bg: #ffffff;
+  --darasa-input-text: #17382e;
 
-  --darasa-text: #f1f5f3;
-  --darasa-text-muted: #9aa9a3;
-
-  --darasa-input-bg: #101817;
-  --darasa-input-text: #f1f5f3;
-
-  --darasa-accent-soft: #123b2c;
+  --darasa-accent-soft: #eaf4ee;
 
   --darasa-shadow:
-    0 12px 35px rgba(0, 0, 0, 0.28);
+    0 10px 30px rgba(23, 56, 46, 0.06);
+
+  --darasa-density: 1;
+
+  color-scheme: light;
 }
 
 
 /* ================================================================
-   PAGE
+   BASE
+   ================================================================ */
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  background: var(--darasa-page-bg);
+  color: var(--darasa-text);
+}
+
+body {
+  margin: 0;
+  background: var(--darasa-page-bg);
+  color: var(--darasa-text);
+  transition:
+    background-color 220ms ease,
+    color 220ms ease;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+
+/* ================================================================
+   DARK MODE
    ================================================================ */
 
 html.dark,
 html.dark body,
 html.dark #root,
 body.darasa-dark {
-  background: #0b1110;
-  color: #f1f5f3;
+  background-color: #071711;
+  color: #e8f1ec;
 }
 
 
-/* ================================================================
-   WHITE SURFACES → DARK SLATE
-   ================================================================ */
+/* Main application surfaces */
 
 html.dark .bg-white,
 body.darasa-dark .bg-white {
-  background-color: #111918 !important;
+  background-color: #0d2119 !important;
 }
 
 
-/* ================================================================
-   LIGHT BACKGROUNDS → DARK PAGE SURFACES
-   ================================================================ */
+/* Soft backgrounds */
 
 html.dark .bg-\[\#F7F9F6\],
 html.dark .bg-\[\#F8FAF8\],
@@ -62,13 +92,11 @@ body.darasa-dark .bg-\[\#F8FAF8\],
 body.darasa-dark .bg-\[\#F5F7F4\],
 body.darasa-dark .bg-\[\#F3F6F3\],
 body.darasa-dark .bg-\[\#F3F5F2\] {
-  background-color: #151f1d !important;
+  background-color: #10291f !important;
 }
 
 
-/* ================================================================
-   PRIMARY TEXT
-   ================================================================ */
+/* Main text */
 
 html.dark .text-\[\#17382E\],
 html.dark .text-\[\#17382e\],
@@ -78,14 +106,13 @@ body.darasa-dark .text-\[\#17382E\],
 body.darasa-dark .text-\[\#17382e\],
 body.darasa-dark .text-\[\#40544C\],
 body.darasa-dark .text-\[\#405650\] {
-  color: #f1f5f3 !important;
+  color: #e8f1ec !important;
 }
 
 
-/* ================================================================
-   SECONDARY TEXT
-   ================================================================ */
+/* Muted text */
 
+html.dark .text-\[\#718079\],
 html.dark .text-\[\#718079\],
 html.dark .text-\[\#64736D\],
 html.dark .text-\[\#687770\],
@@ -96,13 +123,11 @@ body.darasa-dark .text-\[\#64736D\],
 body.darasa-dark .text-\[\#687770\],
 body.darasa-dark .text-\[\#73817B\],
 body.darasa-dark .text-\[\#7B8984\] {
-  color: #9aa9a3 !important;
+  color: #a7b9b0 !important;
 }
 
 
-/* ================================================================
-   BORDERS
-   ================================================================ */
+/* Borders */
 
 html.dark .border-\[\#E2E8E3\],
 html.dark .border-\[\#E3EAE5\],
@@ -112,13 +137,11 @@ body.darasa-dark .border-\[\#E2E8E3\],
 body.darasa-dark .border-\[\#E3EAE5\],
 body.darasa-dark .border-\[\#DCE4DF\],
 body.darasa-dark .border-\[\#E9EDE9\] {
-  border-color: #293632 !important;
+  border-color: #244136 !important;
 }
 
 
-/* ================================================================
-   INPUTS
-   ================================================================ */
+/* Inputs */
 
 html.dark input,
 html.dark textarea,
@@ -126,230 +149,163 @@ html.dark select,
 body.darasa-dark input,
 body.darasa-dark textarea,
 body.darasa-dark select {
-  background-color: #0f1716 !important;
-  color: #f1f5f3 !important;
-  border-color: #2b3934 !important;
+  background-color: #10271e !important;
+  color: #e8f1ec !important;
+  border-color: #315246 !important;
 }
 
 html.dark input::placeholder,
 html.dark textarea::placeholder,
 body.darasa-dark input::placeholder,
 body.darasa-dark textarea::placeholder {
-  color: #718079 !important;
+  color: #81968c !important;
 }
 
 
-/* ================================================================
-   INPUT FOCUS
-   ================================================================ */
-
-html.dark input:focus,
-html.dark textarea:focus,
-html.dark select:focus {
-  border-color: #16805c !important;
-
-  box-shadow:
-    0 0 0 3px rgba(22, 128, 92, 0.15) !important;
-}
-
-
-/* ================================================================
-   SOFT GREEN ACCENT AREAS
-   ================================================================ */
+/* Accent soft surfaces */
 
 html.dark .bg-\[\#EAF4EE\],
 html.dark .bg-\[\#EEF9F2\],
 body.darasa-dark .bg-\[\#EAF4EE\],
 body.darasa-dark .bg-\[\#EEF9F2\] {
-  background-color: #123b2c !important;
+  background-color: #143d2d !important;
 }
 
 
-/* ================================================================
-   GREEN TEXT
-   Keep the brand accent, but make it brighter.
-   ================================================================ */
-
-html.dark .text-\[\#087F5B\],
-html.dark .text-\[\#087F5B\] *,
-body.darasa-dark .text-\[\#087F5B\] {
-  color: #35c58d !important;
-}
-
-
-/* ================================================================
-   COMMON GREEN BACKGROUNDS
-   ================================================================ */
-
-html.dark .bg-\[\#087F5B\],
-body.darasa-dark .bg-\[\#087F5B\] {
-  background-color: #13845f !important;
-}
-
-
-/* ================================================================
-   SHADOWS
-   ================================================================ */
+/* Shadows */
 
 html.dark .shadow-sm,
-html.dark .shadow,
-html.dark .shadow-md,
-body.darasa-dark .shadow-sm,
-body.darasa-dark .shadow,
-body.darasa-dark .shadow-md {
+body.darasa-dark .shadow-sm {
   box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.22) !important;
+    0 10px 30px rgba(0, 0, 0, 0.18) !important;
 }
 
 
 /* ================================================================
-   SETTINGS PAGE
+   DARK MODE — SETTINGS PAGE
    ================================================================ */
 
 html.dark .student-settings-page,
 body.darasa-dark .student-settings-page {
-  background: #0b1110;
-  color: #f1f5f3;
+  background: #071711;
+  color: #e8f1ec;
 }
-
-
-/* Cards */
 
 html.dark .student-settings-card,
 body.darasa-dark .student-settings-card {
-  background: #111918;
-  border-color: #293632;
+  background: #0d2119;
+  border-color: #244136;
+}
+
+html.dark .student-settings-muted,
+body.darasa-dark .student-settings-muted {
+  color: #a7b9b0;
 }
 
 
 /* ================================================================
-   SETTINGS HEADER
+   COMPACT MODE
    ================================================================ */
 
-html.dark .student-settings-page h1,
-html.dark .student-settings-page h2,
-html.dark .student-settings-page h3,
-body.darasa-dark .student-settings-page h1,
-body.darasa-dark .student-settings-page h2,
-body.darasa-dark .student-settings-page h3 {
-  color: #f8faf9;
+html.compact-mode body,
+body.darasa-compact {
+  --darasa-density: 0.82;
+}
+
+
+/*
+  Reduce vertical spacing on common Tailwind containers.
+*/
+
+html.compact-mode .student-settings-page .space-y-6 > :not(
+    [hidden]
+  ) ~ :not([hidden]),
+html.compact-mode .student-settings-page .space-y-5 > :not(
+    [hidden]
+  ) ~ :not([hidden]) {
+  margin-top: 0.75rem !important;
+}
+
+
+/*
+  Smaller cards.
+*/
+
+html.compact-mode .student-settings-card {
+  border-radius: 1.25rem;
+}
+
+
+/*
+  Compact buttons.
+*/
+
+html.compact-mode .student-settings-page button {
+  min-height: 0;
 }
 
 
 /* ================================================================
-   SETTINGS DESCRIPTIONS
+   REDUCED MOTION
    ================================================================ */
 
-html.dark .student-settings-page p,
-body.darasa-dark .student-settings-page p {
-  color: #9aa9a3;
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after,
+body.darasa-reduce-motion *,
+body.darasa-reduce-motion *::before,
+body.darasa-reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+
+  scroll-behavior: auto !important;
 }
 
 
 /* ================================================================
-   SETTINGS ICON CONTAINERS
+   NOTIFICATION VISIBILITY
    ================================================================ */
 
-html.dark .student-settings-page
-  .bg-\[\#EAF4EE\],
-body.darasa-dark .student-settings-page
-  .bg-\[\#EAF4EE\] {
-  background-color: #15372b !important;
+html[data-notifications="hidden"]
+  .student-notifications-section,
+html[data-notifications="hidden"]
+  .student-notification-item {
+  display: none !important;
 }
 
 
 /* ================================================================
-   SIDEBAR
+   ACCESSIBILITY
    ================================================================ */
 
-html.dark aside,
-body.darasa-dark aside {
-  background-color: #080f0d !important;
-  border-color: #24312d !important;
-}
+@media (
+  prefers-reduced-motion: reduce
+) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
 
+    transition-duration: 0.01ms !important;
 
-/* Sidebar text */
-
-html.dark aside .text-\[\#17382E\],
-body.darasa-dark aside .text-\[\#17382E\] {
-  color: #e7eeeb !important;
-}
-
-
-/* Sidebar muted text */
-
-html.dark aside .text-\[\#718079\],
-body.darasa-dark aside .text-\[\#718079\] {
-  color: #879891 !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 
 /* ================================================================
-   SIDEBAR ACTIVE ITEM
+   MOBILE
    ================================================================ */
 
-html.dark aside
-  .bg-\[\#EAF4EE\],
-body.darasa-dark aside
-  .bg-\[\#EAF4EE\] {
-  background-color: #163c2e !important;
-}
+@media (max-width: 768px) {
 
+  html.compact-mode
+    .student-settings-page {
+    --darasa-density: 0.9;
+  }
 
-/* ================================================================
-   HEADER
-   ================================================================ */
-
-html.dark header,
-body.darasa-dark header {
-  background-color: #0f1715 !important;
-  border-color: #24312d !important;
-}
-
-
-/* ================================================================
-   BUTTONS
-   ================================================================ */
-
-html.dark button,
-body.darasa-dark button {
-  transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    color 180ms ease,
-    transform 180ms ease;
-}
-
-
-/* ================================================================
-   HOVER SURFACES
-   ================================================================ */
-
-html.dark button:hover,
-html.dark a:hover {
-  background-color: rgba(255, 255, 255, 0.035);
-}
-
-
-/* ================================================================
-   DARK THEME SCROLLBAR
-   ================================================================ */
-
-html.dark ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-html.dark ::-webkit-scrollbar-track {
-  background: #080f0d;
-}
-
-html.dark ::-webkit-scrollbar-thumb {
-  background: #304039;
-  border-radius: 999px;
-}
-
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #426055;
 }

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import api from "../api";
+import { useAuth } from "../context/AuthContext";
 
 const GRADES = [
   { value: "PP1", label: "PP1" },
@@ -81,6 +82,13 @@ function getStudentClassroomId(student) {
 }
 
 function Classrooms() {
+  const { user } = useAuth();
+
+  const isTeacher = user?.role === "TEACHER";
+  const isAdmin =
+    user?.role === "ADMIN" ||
+    user?.role === "PLATFORM_ADMIN";
+
   const [classrooms, setClassrooms] = useState([]);
   const [students, setStudents] = useState([]);
 
@@ -175,12 +183,6 @@ function Classrooms() {
     loadStudents();
   }, []);
 
-  /*
-   * Build a classroom ID -> student count map.
-   *
-   * The classroom API does not currently return student_count,
-   * so we calculate it from the real student records.
-   */
   const studentCountsByClassroom = useMemo(() => {
     return students.reduce((counts, student) => {
       const classroomId = getStudentClassroomId(student);
@@ -202,9 +204,6 @@ function Classrooms() {
       return 0;
     }
 
-    /*
-     * Keep support for a future backend student_count field.
-     */
     if (
       typeof classroom.student_count === "number"
     ) {
@@ -245,18 +244,29 @@ function Classrooms() {
     });
   }, [classrooms, search]);
 
-  const gradeCounts = useMemo(() => {
-    return GRADES.reduce((counts, grade) => {
-      counts[grade.value] = classrooms.filter(
-        (classroom) =>
-          classroom.grade === grade.value
-      ).length;
+  const prePrimaryCount = useMemo(() => {
+    return classrooms.filter((classroom) =>
+      ["PP1", "PP2"].includes(classroom.grade)
+    ).length;
+  }, [classrooms]);
 
-      return counts;
-    }, {});
+  const lowerPrimaryCount = useMemo(() => {
+    return classrooms.filter((classroom) =>
+      ["G1", "G2", "G3"].includes(classroom.grade)
+    ).length;
+  }, [classrooms]);
+
+  const upperPrimaryCount = useMemo(() => {
+    return classrooms.filter((classroom) =>
+      ["G4", "G5", "G6"].includes(classroom.grade)
+    ).length;
   }, [classrooms]);
 
   function openForm() {
+    if (!isAdmin) {
+      return;
+    }
+
     setFormError("");
     setSuccessMessage("");
 
@@ -289,6 +299,10 @@ function Classrooms() {
   async function handleSubmit(event) {
     event.preventDefault();
 
+    if (!isAdmin) {
+      return;
+    }
+
     setFormError("");
     setSuccessMessage("");
 
@@ -311,11 +325,19 @@ function Classrooms() {
 
       setShowForm(false);
 
+      setForm({
+        name: "",
+        grade: "",
+      });
+
       setSuccessMessage(
         `${classroomName} was created successfully.`
       );
 
-      await loadClassrooms();
+      await Promise.all([
+        loadClassrooms(),
+        loadStudents(),
+      ]);
     } catch (requestError) {
       setFormError(
         extractErrorMessage(
@@ -328,37 +350,52 @@ function Classrooms() {
     }
   }
 
+  const pageTitle = isTeacher
+    ? "My Classes"
+    : "Classrooms";
+
+  const pageDescription = isTeacher
+    ? "View the classrooms assigned to you and monitor the learners in each class."
+    : "Create and manage your school's classroom structure. Classrooms created here can then be assigned to teachers from the teacher management area.";
+
+  const emptyMessage = isTeacher
+    ? "You do not currently have any classrooms assigned to you."
+    : "Create your first classroom to start organizing learners.";
+
   return (
     <div className="space-y-7">
       {/* HEADER */}
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0B5D43]">
-            Academic Structure
+            {isTeacher
+              ? "Teaching Workspace"
+              : "School Administration"}
           </p>
 
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#12382D] sm:text-4xl">
-            Classrooms
+            {pageTitle}
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#71807A] sm:text-base">
-            Organize learners into classrooms and maintain
-            your school's CBC grade structure.
+            {pageDescription}
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openForm}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#084936] focus:outline-none focus:ring-4 focus:ring-[#0B5D43]/15"
-        >
-          <Plus size={19} />
-          Add Classroom
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={openForm}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#084936] focus:outline-none focus:ring-4 focus:ring-[#0B5D43]/15"
+          >
+            <Plus size={19} />
+            Add Classroom
+          </button>
+        )}
       </div>
 
       {/* SUCCESS */}
-      {successMessage && (
+      {successMessage && isAdmin && (
         <div className="flex items-start gap-3 rounded-xl border border-[#BBDCCB] bg-[#EDF8F1] px-4 py-3 text-sm text-[#17633F]">
           <CheckCircle2
             size={19}
@@ -395,6 +432,29 @@ function Classrooms() {
         </div>
       )}
 
+      {/* TEACHER READ-ONLY NOTICE */}
+      {isTeacher && !loading && (
+        <div className="flex items-start gap-3 rounded-xl border border-[#D8E8DF] bg-[#F2F8F4] px-4 py-3 text-sm text-[#36594A]">
+          <School
+            size={19}
+            className="mt-0.5 shrink-0 text-[#0B5D43]"
+          />
+
+          <div>
+            <p className="font-semibold text-[#17382E]">
+              Your assigned classes
+            </p>
+
+            <p className="mt-1">
+              These are the classrooms assigned to your
+              teacher account. Classroom creation and
+              student assignment are managed by the school
+              administrator.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* STATS */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-[#E4E5DE] bg-white p-5 shadow-sm">
@@ -409,11 +469,15 @@ function Classrooms() {
           </div>
 
           <p className="mt-5 text-sm font-semibold text-[#17382E]">
-            Total Classrooms
+            {isTeacher
+              ? "My Classrooms"
+              : "Total Classrooms"}
           </p>
 
           <p className="mt-1 text-xs text-[#8A9691]">
-            Active classroom records
+            {isTeacher
+              ? "Classrooms assigned to you"
+              : "Active classroom records"}
           </p>
         </div>
 
@@ -424,11 +488,7 @@ function Classrooms() {
             </div>
 
             <span className="text-2xl font-bold text-[#12382D]">
-              {classrooms.filter((classroom) =>
-                ["PP1", "PP2"].includes(
-                  classroom.grade
-                )
-              ).length}
+              {prePrimaryCount}
             </span>
           </div>
 
@@ -448,11 +508,7 @@ function Classrooms() {
             </div>
 
             <span className="text-2xl font-bold text-[#12382D]">
-              {classrooms.filter((classroom) =>
-                ["G1", "G2", "G3"].includes(
-                  classroom.grade
-                )
-              ).length}
+              {lowerPrimaryCount}
             </span>
           </div>
 
@@ -472,11 +528,7 @@ function Classrooms() {
             </div>
 
             <span className="text-2xl font-bold text-[#12382D]">
-              {classrooms.filter((classroom) =>
-                ["G4", "G5", "G6"].includes(
-                  classroom.grade
-                )
-              ).length}
+              {upperPrimaryCount}
             </span>
           </div>
 
@@ -505,7 +557,11 @@ function Classrooms() {
               onChange={(event) =>
                 setSearch(event.target.value)
               }
-              placeholder="Search classrooms..."
+              placeholder={
+                isTeacher
+                  ? "Search my classrooms..."
+                  : "Search classrooms..."
+              }
               className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-[#FAFAF7] pl-11 pr-4 text-sm text-[#17382E] outline-none transition placeholder:text-[#9AA49F] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
             />
           </div>
@@ -537,7 +593,9 @@ function Classrooms() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-base font-bold text-[#17382E]">
-                Classroom Directory
+                {isTeacher
+                  ? "My Classroom Directory"
+                  : "Classroom Directory"}
               </h2>
 
               <p className="mt-1 text-sm text-[#8A9691]">
@@ -577,11 +635,11 @@ function Classrooms() {
 
             <p className="mt-2 max-w-md text-sm leading-6 text-[#7C8984]">
               {classrooms.length === 0
-                ? "Create your first classroom to start organizing learners."
+                ? emptyMessage
                 : "No classrooms match your current search or grade filter."}
             </p>
 
-            {classrooms.length === 0 && (
+            {isAdmin && classrooms.length === 0 && (
               <button
                 type="button"
                 onClick={openForm}
@@ -750,11 +808,10 @@ function Classrooms() {
         )}
       </div>
 
-      {/* ADD CLASSROOM MODAL */}
-      {showForm && (
+      {/* ADMIN ADD CLASSROOM MODAL */}
+      {showForm && isAdmin && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#03251B]/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
-            {/* MODAL HEADER */}
             <div className="flex items-start justify-between border-b border-[#E9E8E1] px-6 py-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
@@ -775,14 +832,14 @@ function Classrooms() {
               <button
                 type="button"
                 onClick={closeForm}
-                className="rounded-lg p-2 text-[#7C8984] transition hover:bg-[#F1F3EE] hover:text-[#0B5D43]"
+                disabled={submitting}
+                className="rounded-lg p-2 text-[#7C8984] transition hover:bg-[#F1F3EE] hover:text-[#0B5D43] disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Close classroom form"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* FORM */}
             <form
               onSubmit={handleSubmit}
               className="space-y-5 p-6"
@@ -817,7 +874,8 @@ function Classrooms() {
                   onChange={handleFormChange}
                   placeholder="e.g. Sunrise"
                   autoFocus
-                  className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                  disabled={submitting}
+                  className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 disabled:cursor-not-allowed disabled:bg-[#F5F6F2]"
                 />
 
                 <p className="mt-2 text-xs text-[#8A9691]">
@@ -842,7 +900,8 @@ function Classrooms() {
                   name="grade"
                   value={form.grade}
                   onChange={handleFormChange}
-                  className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                  disabled={submitting}
+                  className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 disabled:cursor-not-allowed disabled:bg-[#F5F6F2]"
                 >
                   <option value="">
                     Select grade
@@ -859,7 +918,14 @@ function Classrooms() {
                 </select>
               </div>
 
-              {/* ACTIONS */}
+              <div className="rounded-xl border border-[#DDEBE3] bg-[#F4FAF6] px-4 py-3">
+                <p className="text-xs leading-5 text-[#526C61]">
+                  After creating the classroom, assign it
+                  to the appropriate teacher from the
+                  teacher management area.
+                </p>
+              </div>
+
               <div className="flex flex-col-reverse gap-3 border-t border-[#E9E8E1] pt-5 sm:flex-row sm:justify-end">
                 <button
                   type="button"

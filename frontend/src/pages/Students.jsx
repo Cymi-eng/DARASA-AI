@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CalendarDays,
+  Check,
   CheckCircle2,
   GraduationCap,
   Loader2,
+  Pencil,
   Plus,
   Search,
   Users,
@@ -24,6 +26,17 @@ const GRADES = [
   { value: "G6", label: "Grade 6" },
 ];
 
+const EMPTY_FORM = {
+  first_name: "",
+  last_name: "",
+  admission_number: "",
+  grade: "",
+  date_of_birth: "",
+  guardian_name: "",
+  guardian_phone: "",
+  classroom: "",
+};
+
 function getGradeLabel(value) {
   return (
     GRADES.find((grade) => grade.value === value)?.label ||
@@ -33,25 +46,36 @@ function getGradeLabel(value) {
 }
 
 function getStudentName(student) {
-  return [student.first_name, student.last_name]
+  return [student?.first_name, student?.last_name]
     .filter(Boolean)
     .join(" ");
 }
 
-function getClassroomName(classroom, classrooms) {
-  if (!classroom) {
-    return "Not assigned";
+function getClassroomId(student) {
+  if (!student?.classroom) {
+    return "";
   }
 
-  if (typeof classroom === "object") {
-    return classroom.name || "Not assigned";
+  if (typeof student.classroom === "object") {
+    return String(student.classroom.id ?? "");
   }
 
-  return (
-    classrooms.find(
-      (item) => String(item.id) === String(classroom)
-    )?.name || "Not assigned"
-  );
+  return String(student.classroom);
+}
+
+function getClassroomName(student) {
+  if (typeof student?.classroom === "object" && student.classroom) {
+    return student.classroom.name || "Not assigned";
+  }
+
+  return student?.classroom_name || "Not assigned";
+}
+
+function getStudentInitials(student) {
+  const first = student?.first_name?.charAt(0) || "";
+  const last = student?.last_name?.charAt(0) || "";
+
+  return `${first}${last}`.toUpperCase() || "ST";
 }
 
 function extractErrorMessage(error, fallback) {
@@ -69,25 +93,27 @@ function extractErrorMessage(error, fallback) {
     return data.detail;
   }
 
-  const messages = Object.entries(data).flatMap(
-    ([field, value]) => {
-      if (Array.isArray(value)) {
-        return value.map(
-          (message) => `${field}: ${message}`
-        );
-      }
-
-      if (typeof value === "string") {
-        return [`${field}: ${value}`];
-      }
-
-      return [];
+  const messages = Object.entries(data).flatMap(([field, value]) => {
+    if (Array.isArray(value)) {
+      return value.map((message) =>
+        field === "non_field_errors"
+          ? String(message)
+          : `${field.replaceAll("_", " ")}: ${message}`
+      );
     }
-  );
 
-  return messages.length > 0
-    ? messages.join(" ")
-    : fallback;
+    if (typeof value === "string") {
+      return [
+        field === "non_field_errors"
+          ? value
+          : `${field.replaceAll("_", " ")}: ${value}`,
+      ];
+    }
+
+    return [];
+  });
+
+  return messages.length > 0 ? messages.join(" ") : fallback;
 }
 
 function Students() {
@@ -95,8 +121,7 @@ function Students() {
   const [classrooms, setClassrooms] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [classroomsLoading, setClassroomsLoading] =
-    useState(true);
+  const [classroomsLoading, setClassroomsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [error, setError] = useState("");
@@ -107,17 +132,9 @@ function Students() {
   const [gradeFilter, setGradeFilter] = useState("");
 
   const [showForm, setShowForm] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
 
-  const [form, setForm] = useState({
-    first_name: "",
-    last_name: "",
-    admission_number: "",
-    grade: "",
-    date_of_birth: "",
-    guardian_name: "",
-    guardian_phone: "",
-    classroom: "",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
 
   async function loadStudents() {
     setLoading(true);
@@ -139,7 +156,7 @@ function Students() {
       setStudents(
         Array.isArray(data)
           ? data
-          : data.results || []
+          : data?.results ?? []
       );
     } catch (requestError) {
       setError(
@@ -168,7 +185,7 @@ function Students() {
       setClassrooms(
         Array.isArray(data)
           ? data
-          : data.results || []
+          : data?.results ?? []
       );
     } catch (requestError) {
       setFormError(
@@ -198,39 +215,66 @@ function Students() {
     }
 
     return students.filter((student) => {
-      const name = getStudentName(student);
-
-      return [
-        name,
+      const values = [
+        getStudentName(student),
         student.admission_number,
         student.guardian_name,
         student.guardian_phone,
         getGradeLabel(student.grade),
-      ]
+        getClassroomName(student),
+      ];
+
+      return values
         .filter(Boolean)
         .some((value) =>
-          String(value)
-            .toLowerCase()
-            .includes(query)
+          String(value).toLowerCase().includes(query)
         );
     });
   }, [students, search]);
 
-  function openForm() {
+  const availableClassrooms = useMemo(() => {
+    if (!form.grade) {
+      return classrooms;
+    }
+
+    const matching = classrooms.filter(
+      (classroom) => classroom.grade === form.grade
+    );
+
+    return matching.length > 0 ? matching : classrooms;
+  }, [classrooms, form.grade]);
+
+  function updateField(field, value) {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function openCreateForm() {
+    setEditingStudent(null);
+    setForm({ ...EMPTY_FORM });
     setFormError("");
     setSuccessMessage("");
+    setShowForm(true);
+  }
+
+  function openEditForm(student) {
+    setEditingStudent(student);
 
     setForm({
-      first_name: "",
-      last_name: "",
-      admission_number: "",
-      grade: "",
-      date_of_birth: "",
-      guardian_name: "",
-      guardian_phone: "",
-      classroom: "",
+      first_name: student.first_name ?? "",
+      last_name: student.last_name ?? "",
+      admission_number: student.admission_number ?? "",
+      grade: student.grade ?? "",
+      date_of_birth: student.date_of_birth ?? "",
+      guardian_name: student.guardian_name ?? "",
+      guardian_phone: student.guardian_phone ?? "",
+      classroom: getClassroomId(student),
     });
 
+    setFormError("");
+    setSuccessMessage("");
     setShowForm(true);
   }
 
@@ -240,16 +284,9 @@ function Students() {
     }
 
     setShowForm(false);
+    setEditingStudent(null);
+    setForm({ ...EMPTY_FORM });
     setFormError("");
-  }
-
-  function handleFormChange(event) {
-    const { name, value } = event.target;
-
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
   }
 
   async function handleSubmit(event) {
@@ -276,33 +313,45 @@ function Students() {
       const payload = {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
-        admission_number:
-          form.admission_number.trim(),
+        admission_number: form.admission_number.trim(),
         grade: form.grade,
-        date_of_birth:
-          form.date_of_birth || null,
+        date_of_birth: form.date_of_birth || null,
         guardian_name: form.guardian_name.trim(),
         guardian_phone: form.guardian_phone.trim(),
+        classroom: form.classroom
+          ? Number(form.classroom)
+          : null,
       };
 
-      if (form.classroom) {
-        payload.classroom = Number(form.classroom);
+      if (editingStudent) {
+        await api.patch(
+          `/students/${editingStudent.id}/`,
+          payload
+        );
+
+        setSuccessMessage(
+          `${form.first_name.trim()} ${form.last_name.trim()} was updated successfully.`
+        );
+      } else {
+        await api.post("/students/", payload);
+
+        setSuccessMessage(
+          `${form.first_name.trim()} ${form.last_name.trim()} was added successfully.`
+        );
       }
 
-      await api.post("/students/", payload);
-
       setShowForm(false);
-
-      setSuccessMessage(
-        `${form.first_name.trim()} ${form.last_name.trim()} was added successfully.`
-      );
+      setEditingStudent(null);
+      setForm({ ...EMPTY_FORM });
 
       await loadStudents();
     } catch (requestError) {
       setFormError(
         extractErrorMessage(
           requestError,
-          "Unable to add student."
+          editingStudent
+            ? "Unable to update student."
+            : "Unable to add student."
         )
       );
     } finally {
@@ -310,9 +359,22 @@ function Students() {
     }
   }
 
+  const pp1Count = students.filter(
+    (student) => student.grade === "PP1"
+  ).length;
+
+  const pp2Count = students.filter(
+    (student) => student.grade === "PP2"
+  ).length;
+
+  const primaryCount = students.filter((student) =>
+    ["G1", "G2", "G3", "G4", "G5", "G6"].includes(
+      student.grade
+    )
+  ).length;
+
   return (
     <div className="space-y-7">
-      {/* HEADER */}
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0B5D43]">
@@ -331,7 +393,7 @@ function Students() {
 
         <button
           type="button"
-          onClick={openForm}
+          onClick={openCreateForm}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#084936] focus:outline-none focus:ring-4 focus:ring-[#0B5D43]/15"
         >
           <Plus size={19} />
@@ -339,18 +401,17 @@ function Students() {
         </button>
       </div>
 
-      {/* SUCCESS */}
       {successMessage && (
         <div className="flex items-start gap-3 rounded-xl border border-[#BBDCCB] bg-[#EDF8F1] px-4 py-3 text-sm text-[#17633F]">
           <CheckCircle2
             size={19}
             className="mt-0.5 shrink-0"
           />
+
           <span>{successMessage}</span>
         </div>
       )}
 
-      {/* ERROR */}
       {error && (
         <div className="flex items-start gap-3 rounded-xl border border-[#F3C5C1] bg-[#FFF3F1] px-4 py-3 text-sm text-[#B42318]">
           <AlertCircle
@@ -368,7 +429,6 @@ function Students() {
         </div>
       )}
 
-      {/* STATS */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-[#E4E5DE] bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between">
@@ -397,11 +457,7 @@ function Students() {
             </div>
 
             <span className="text-2xl font-bold text-[#12382D]">
-              {
-                students.filter(
-                  (student) => student.grade === "PP1"
-                ).length
-              }
+              {pp1Count}
             </span>
           </div>
 
@@ -421,11 +477,7 @@ function Students() {
             </div>
 
             <span className="text-2xl font-bold text-[#12382D]">
-              {
-                students.filter(
-                  (student) => student.grade === "PP2"
-                ).length
-              }
+              {pp2Count}
             </span>
           </div>
 
@@ -445,18 +497,7 @@ function Students() {
             </div>
 
             <span className="text-2xl font-bold text-[#12382D]">
-              {
-                students.filter((student) =>
-                  [
-                    "G1",
-                    "G2",
-                    "G3",
-                    "G4",
-                    "G5",
-                    "G6",
-                  ].includes(student.grade)
-                ).length
-              }
+              {primaryCount}
             </span>
           </div>
 
@@ -470,7 +511,6 @@ function Students() {
         </div>
       </div>
 
-      {/* FILTERS */}
       <div className="rounded-2xl border border-[#E4E5DE] bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[1fr_240px]">
           <div className="relative">
@@ -511,7 +551,6 @@ function Students() {
         </div>
       </div>
 
-      {/* STUDENT DIRECTORY */}
       <div className="overflow-hidden rounded-2xl border border-[#E4E5DE] bg-white shadow-sm">
         <div className="border-b border-[#E9E8E1] px-6 py-5">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -524,8 +563,7 @@ function Students() {
                 {filteredStudents.length} student
                 {filteredStudents.length === 1
                   ? ""
-                  : "s"}{" "}
-                displayed
+                  : "s"} displayed
               </p>
             </div>
 
@@ -543,6 +581,7 @@ function Students() {
                 size={20}
                 className="animate-spin text-[#0B5D43]"
               />
+
               Loading students...
             </div>
           </div>
@@ -565,7 +604,7 @@ function Students() {
             {students.length === 0 && (
               <button
                 type="button"
-                onClick={openForm}
+                onClick={openCreateForm}
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0B5D43] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#084936]"
               >
                 <Plus size={17} />
@@ -575,9 +614,8 @@ function Students() {
           </div>
         ) : (
           <>
-            {/* DESKTOP */}
             <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[900px]">
+              <table className="w-full min-w-[1000px]">
                 <thead>
                   <tr className="border-b border-[#E9E8E1] bg-[#FAFAF7] text-left">
                     <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[#87948E]">
@@ -599,6 +637,10 @@ function Students() {
                     <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[#87948E]">
                       Guardian
                     </th>
+
+                    <th className="px-6 py-4 text-right text-[11px] font-bold uppercase tracking-[0.12em] text-[#87948E]">
+                      Action
+                    </th>
                   </tr>
                 </thead>
 
@@ -611,12 +653,7 @@ function Students() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43]">
-                            {student.first_name
-                              ?.charAt(0)
-                              ?.toUpperCase()}
-                            {student.last_name
-                              ?.charAt(0)
-                              ?.toUpperCase()}
+                            {getStudentInitials(student)}
                           </div>
 
                           <div>
@@ -626,8 +663,7 @@ function Students() {
 
                             {student.date_of_birth && (
                               <p className="mt-0.5 text-xs text-[#9AA49F]">
-                                DOB:{" "}
-                                {student.date_of_birth}
+                                DOB: {student.date_of_birth}
                               </p>
                             )}
                           </div>
@@ -645,10 +681,7 @@ function Students() {
                       </td>
 
                       <td className="px-6 py-4 text-sm text-[#52645D]">
-                        {getClassroomName(
-                          student.classroom,
-                          classrooms
-                        )}
+                        {getClassroomName(student)}
                       </td>
 
                       <td className="px-6 py-4">
@@ -663,13 +696,25 @@ function Students() {
                           </p>
                         )}
                       </td>
+
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openEditForm(student)
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#DDE1DB] bg-white px-3 py-2 text-xs font-semibold text-[#0B5D43] transition hover:border-[#0B5D43] hover:bg-[#EAF3EE]"
+                        >
+                          <Pencil size={14} />
+                          Manage
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* MOBILE */}
             <div className="divide-y divide-[#EEF0EB] lg:hidden">
               {filteredStudents.map((student) => (
                 <div
@@ -678,12 +723,7 @@ function Students() {
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43]">
-                      {student.first_name
-                        ?.charAt(0)
-                        ?.toUpperCase()}
-                      {student.last_name
-                        ?.charAt(0)
-                        ?.toUpperCase()}
+                      {getStudentInitials(student)}
                     </div>
 
                     <div className="min-w-0">
@@ -708,10 +748,7 @@ function Students() {
                       </p>
 
                       <p className="mt-1 text-sm font-medium text-[#405650]">
-                        {getClassroomName(
-                          student.classroom,
-                          classrooms
-                        )}
+                        {getClassroomName(student)}
                       </p>
                     </div>
 
@@ -726,6 +763,15 @@ function Students() {
                       </p>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openEditForm(student)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#DDE1DB] bg-white px-4 py-2.5 text-sm font-semibold text-[#0B5D43] transition hover:border-[#0B5D43] hover:bg-[#EAF3EE]"
+                  >
+                    <Pencil size={16} />
+                    Manage Student
+                  </button>
                 </div>
               ))}
             </div>
@@ -733,12 +779,10 @@ function Students() {
         )}
       </div>
 
-      {/* ADD STUDENT MODAL */}
       {showForm && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-[#03251B]/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
-            {/* MODAL HEADER */}
-            <div className="flex items-start justify-between border-b border-[#E9E8E1] px-6 py-5">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#03251B]/55 p-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[#E9E8E1] bg-white px-6 py-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
                   <GraduationCap size={20} />
@@ -746,11 +790,15 @@ function Students() {
 
                 <div>
                   <h2 className="text-lg font-bold text-[#17382E]">
-                    Add Student
+                    {editingStudent
+                      ? "Manage Student"
+                      : "Add Student"}
                   </h2>
 
                   <p className="mt-0.5 text-xs text-[#8A9691]">
-                    Create a new learner record.
+                    {editingStudent
+                      ? "Update learner information and classroom placement."
+                      : "Create a new learner record and assign a classroom."}
                   </p>
                 </div>
               </div>
@@ -758,6 +806,7 @@ function Students() {
               <button
                 type="button"
                 onClick={closeForm}
+                disabled={submitting}
                 className="rounded-lg p-2 text-[#7C8984] transition hover:bg-[#F1F3EE] hover:text-[#0B5D43]"
                 aria-label="Close student form"
               >
@@ -765,10 +814,9 @@ function Students() {
               </button>
             </div>
 
-            {/* FORM */}
             <form
               onSubmit={handleSubmit}
-              className="space-y-5 p-6"
+              className="space-y-6 p-6"
             >
               {formError && (
                 <div className="flex items-start gap-3 rounded-xl border border-[#F3C5C1] bg-[#FFF3F1] px-4 py-3 text-sm text-[#B42318]">
@@ -781,194 +829,244 @@ function Students() {
                 </div>
               )}
 
-              {/* NAME */}
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="first_name"
-                    className="mb-2 block text-sm font-semibold text-[#405650]"
-                  >
-                    First Name{" "}
-                    <span className="text-[#B33A31]">*</span>
-                  </label>
+              <div>
+                <h3 className="text-sm font-bold text-[#17382E]">
+                  Student Information
+                </h3>
 
-                  <input
-                    id="first_name"
-                    name="first_name"
-                    type="text"
-                    value={form.first_name}
-                    onChange={handleFormChange}
-                    placeholder="e.g. Amani"
-                    autoComplete="given-name"
-                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="last_name"
-                    className="mb-2 block text-sm font-semibold text-[#405650]"
-                  >
-                    Last Name{" "}
-                    <span className="text-[#B33A31]">*</span>
-                  </label>
-
-                  <input
-                    id="last_name"
-                    name="last_name"
-                    type="text"
-                    value={form.last_name}
-                    onChange={handleFormChange}
-                    placeholder="e.g. Otieno"
-                    autoComplete="family-name"
-                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
-                  />
-                </div>
-              </div>
-
-              {/* ADMISSION + GRADE */}
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="admission_number"
-                    className="mb-2 block text-sm font-semibold text-[#405650]"
-                  >
-                    Admission Number{" "}
-                    <span className="text-[#B33A31]">*</span>
-                  </label>
-
-                  <input
-                    id="admission_number"
-                    name="admission_number"
-                    type="text"
-                    value={form.admission_number}
-                    onChange={handleFormChange}
-                    placeholder="e.g. DAR-001"
-                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="grade"
-                    className="mb-2 block text-sm font-semibold text-[#405650]"
-                  >
-                    Grade{" "}
-                    <span className="text-[#B33A31]">*</span>
-                  </label>
-
-                  <select
-                    id="grade"
-                    name="grade"
-                    value={form.grade}
-                    onChange={handleFormChange}
-                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
-                  >
-                    <option value="">
-                      Select grade
-                    </option>
-
-                    {GRADES.map((grade) => (
-                      <option
-                        key={grade.value}
-                        value={grade.value}
-                      >
-                        {grade.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* DOB + CLASSROOM */}
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="date_of_birth"
-                    className="mb-2 block text-sm font-semibold text-[#405650]"
-                  >
-                    Date of Birth
-                  </label>
-
-                  <div className="relative">
-                    <CalendarDays
-                      size={18}
-                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8A9691]"
-                    />
+                <div className="mt-4 grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="student_first_name"
+                      className="mb-2 block text-sm font-semibold text-[#405650]"
+                    >
+                      First Name{" "}
+                      <span className="text-[#B33A31]">
+                        *
+                      </span>
+                    </label>
 
                     <input
-                      id="date_of_birth"
-                      name="date_of_birth"
-                      type="date"
-                      value={form.date_of_birth}
-                      onChange={handleFormChange}
-                      className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white pl-11 pr-4 text-sm text-[#405650] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                      id="student_first_name"
+                      type="text"
+                      value={form.first_name}
+                      onChange={(event) =>
+                        updateField(
+                          "first_name",
+                          event.target.value
+                        )
+                      }
+                      placeholder="e.g. Amani"
+                      required
+                      className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label
-                    htmlFor="classroom"
-                    className="mb-2 block text-sm font-semibold text-[#405650]"
-                  >
-                    Classroom
-                  </label>
+                  <div>
+                    <label
+                      htmlFor="student_last_name"
+                      className="mb-2 block text-sm font-semibold text-[#405650]"
+                    >
+                      Last Name{" "}
+                      <span className="text-[#B33A31]">
+                        *
+                      </span>
+                    </label>
 
-                  <select
-                    id="classroom"
-                    name="classroom"
-                    value={form.classroom}
-                    onChange={handleFormChange}
-                    disabled={classroomsLoading}
-                    className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 disabled:bg-[#F4F5F1]"
-                  >
-                    <option value="">
-                      {classroomsLoading
-                        ? "Loading classrooms..."
-                        : classrooms.length === 0
-                          ? "No classrooms available"
-                          : "Select classroom"}
-                    </option>
+                    <input
+                      id="student_last_name"
+                      type="text"
+                      value={form.last_name}
+                      onChange={(event) =>
+                        updateField(
+                          "last_name",
+                          event.target.value
+                        )
+                      }
+                      placeholder="e.g. Otieno"
+                      required
+                      className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                    />
+                  </div>
 
-                    {classrooms.map((classroom) => (
-                      <option
-                        key={classroom.id}
-                        value={classroom.id}
-                      >
-                        {classroom.name}
-                        {classroom.grade
-                          ? ` — ${getGradeLabel(
-                              classroom.grade
-                            )}`
-                          : ""}
+                  <div>
+                    <label
+                      htmlFor="student_admission_number"
+                      className="mb-2 block text-sm font-semibold text-[#405650]"
+                    >
+                      Admission Number{" "}
+                      <span className="text-[#B33A31]">
+                        *
+                      </span>
+                    </label>
+
+                    <input
+                      id="student_admission_number"
+                      type="text"
+                      value={form.admission_number}
+                      onChange={(event) =>
+                        updateField(
+                          "admission_number",
+                          event.target.value
+                        )
+                      }
+                      placeholder="e.g. DAR-001"
+                      required
+                      className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="student_grade"
+                      className="mb-2 block text-sm font-semibold text-[#405650]"
+                    >
+                      Grade{" "}
+                      <span className="text-[#B33A31]">
+                        *
+                      </span>
+                    </label>
+
+                    <select
+                      id="student_grade"
+                      value={form.grade}
+                      onChange={(event) => {
+                        updateField(
+                          "grade",
+                          event.target.value
+                        );
+                        updateField("classroom", "");
+                      }}
+                      required
+                      className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                    >
+                      <option value="">
+                        Select grade
                       </option>
-                    ))}
-                  </select>
+
+                      {GRADES.map((grade) => (
+                        <option
+                          key={grade.value}
+                          value={grade.value}
+                        >
+                          {grade.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="student_date_of_birth"
+                      className="mb-2 block text-sm font-semibold text-[#405650]"
+                    >
+                      Date of Birth
+                    </label>
+
+                    <div className="relative">
+                      <CalendarDays
+                        size={18}
+                        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8A9691]"
+                      />
+
+                      <input
+                        id="student_date_of_birth"
+                        type="date"
+                        value={form.date_of_birth}
+                        onChange={(event) =>
+                          updateField(
+                            "date_of_birth",
+                            event.target.value
+                          )
+                        }
+                        className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white pl-11 pr-4 text-sm text-[#405650] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="student_classroom"
+                      className="mb-2 block text-sm font-semibold text-[#405650]"
+                    >
+                      Classroom
+                    </label>
+
+                    <select
+                      id="student_classroom"
+                      value={form.classroom}
+                      onChange={(event) =>
+                        updateField(
+                          "classroom",
+                          event.target.value
+                        )
+                      }
+                      disabled={
+                        classroomsLoading ||
+                        !form.grade
+                      }
+                      className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 disabled:cursor-not-allowed disabled:bg-[#F4F5F1]"
+                    >
+                      <option value="">
+                        {!form.grade
+                          ? "Select grade first"
+                          : classroomsLoading
+                            ? "Loading classrooms..."
+                            : availableClassrooms.length ===
+                                0
+                              ? "No classrooms available"
+                              : "Select classroom"}
+                      </option>
+
+                      {availableClassrooms.map(
+                        (classroom) => (
+                          <option
+                            key={classroom.id}
+                            value={classroom.id}
+                          >
+                            {classroom.name}
+                            {classroom.grade
+                              ? ` — ${getGradeLabel(
+                                  classroom.grade
+                                )}`
+                              : ""}
+                          </option>
+                        )
+                      )}
+                    </select>
+
+                    <p className="mt-1.5 text-[11px] text-[#8A9691]">
+                      Classroom options are matched to the
+                      selected grade where possible.
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {/* GUARDIAN */}
               <div className="border-t border-[#E9E8E1] pt-5">
-                <p className="mb-4 text-xs font-bold uppercase tracking-[0.14em] text-[#0B5D43]">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0B5D43]">
                   Guardian Information
                 </p>
 
-                <div className="grid gap-5 sm:grid-cols-2">
+                <div className="mt-4 grid gap-5 sm:grid-cols-2">
                   <div>
                     <label
-                      htmlFor="guardian_name"
+                      htmlFor="student_guardian_name"
                       className="mb-2 block text-sm font-semibold text-[#405650]"
                     >
                       Guardian Name
                     </label>
 
                     <input
-                      id="guardian_name"
-                      name="guardian_name"
+                      id="student_guardian_name"
                       type="text"
                       value={form.guardian_name}
-                      onChange={handleFormChange}
+                      onChange={(event) =>
+                        updateField(
+                          "guardian_name",
+                          event.target.value
+                        )
+                      }
                       placeholder="e.g. Jane Otieno"
                       className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
                     />
@@ -976,27 +1074,29 @@ function Students() {
 
                   <div>
                     <label
-                      htmlFor="guardian_phone"
+                      htmlFor="student_guardian_phone"
                       className="mb-2 block text-sm font-semibold text-[#405650]"
                     >
                       Guardian Phone
                     </label>
 
                     <input
-                      id="guardian_phone"
-                      name="guardian_phone"
+                      id="student_guardian_phone"
                       type="tel"
                       value={form.guardian_phone}
-                      onChange={handleFormChange}
+                      onChange={(event) =>
+                        updateField(
+                          "guardian_phone",
+                          event.target.value
+                        )
+                      }
                       placeholder="e.g. 0712345678"
-                      autoComplete="tel"
                       className="h-12 w-full rounded-xl border border-[#DDE1DB] bg-white px-4 text-sm text-[#405650] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* ACTIONS */}
               <div className="flex flex-col-reverse gap-3 border-t border-[#E9E8E1] pt-5 sm:flex-row sm:justify-end">
                 <button
                   type="button"
@@ -1018,12 +1118,23 @@ function Students() {
                         size={18}
                         className="animate-spin"
                       />
-                      Saving...
+                      {editingStudent
+                        ? "Saving..."
+                        : "Creating..."}
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 size={18} />
-                      Save Student
+                      {editingStudent ? (
+                        <>
+                          <Check size={18} />
+                          Save Changes
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={18} />
+                          Create Student
+                        </>
+                      )}
                     </>
                   )}
                 </button>

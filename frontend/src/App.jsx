@@ -13,6 +13,7 @@ import StudentPortal from "./pages/StudentPortal.jsx";
 import StudentSettings from "./pages/StudentSettings.jsx";
 import Students from "./pages/Students.jsx";
 import TeacherPortal from "./pages/TeacherPortal.jsx";
+import TeacherSettings from "./pages/TeacherSettings.jsx";
 import Teachers from "./pages/Teachers.jsx";
 
 function getRoleHome(role) {
@@ -176,6 +177,15 @@ function App() {
         element={
           <RoleRoute allowedRoles={["TEACHER"]}>
             <TeacherPortal />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/teacher-portal/settings"
+        element={
+          <RoleRoute allowedRoles={["TEACHER"]}>
+            <TeacherSettings />
           </RoleRoute>
         }
       />

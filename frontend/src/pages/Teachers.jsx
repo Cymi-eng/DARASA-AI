@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   Mail,
+  Pencil,
   Phone,
   Plus,
   Search,
@@ -18,6 +19,7 @@ const EMPTY_FORM = {
   last_name: "",
   email: "",
   password: "",
+  confirm_password: "",
   phone: "",
   classrooms: [],
 };
@@ -31,26 +33,10 @@ function getResults(data) {
 }
 
 function getUserName(teacher) {
-  if (teacher?.user_first_name || teacher?.user_last_name) {
-    const fullName = `${teacher.user_first_name ?? ""} ${
-      teacher.user_last_name ?? ""
-    }`.trim();
-
-    if (fullName) {
-      return fullName;
-    }
-  }
-
-  if (teacher?.username) {
-    return teacher.username;
-  }
-
   const user = teacher?.user;
 
   if (typeof user === "object" && user) {
-    const fullName = `${user.first_name ?? ""} ${
-      user.last_name ?? ""
-    }`.trim();
+    const fullName = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
 
     return fullName || user.username || `Teacher #${teacher.id}`;
   }
@@ -59,10 +45,6 @@ function getUserName(teacher) {
 }
 
 function getUsername(teacher) {
-  if (teacher?.username) {
-    return teacher.username;
-  }
-
   if (typeof teacher?.user === "object" && teacher.user) {
     return teacher.user.username || "";
   }
@@ -79,14 +61,6 @@ function getTeacherInitials(teacher) {
   }
 
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-}
-
-function getTeacherClassrooms(teacher, classrooms) {
-  const assignedIds = teacher?.classrooms ?? [];
-
-  return classrooms.filter((classroom) =>
-    assignedIds.includes(classroom.id)
-  );
 }
 
 function getErrorMessage(error, fallback) {
@@ -132,6 +106,8 @@ function Teachers() {
 
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
+
+  const [editingTeacher, setEditingTeacher] = useState(null);
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState("");
@@ -181,27 +157,13 @@ function Teachers() {
       const username = getUsername(teacher).toLowerCase();
       const phone = String(teacher.phone ?? "").toLowerCase();
 
-      const teacherClassrooms = getTeacherClassrooms(
-        teacher,
-        classrooms
-      );
-
-      const classroomText = teacherClassrooms
-        .map(
-          (classroom) =>
-            `${classroom.name} ${classroom.grade}`
-        )
-        .join(" ")
-        .toLowerCase();
-
       return (
         name.includes(query) ||
         username.includes(query) ||
-        phone.includes(query) ||
-        classroomText.includes(query)
+        phone.includes(query)
       );
     });
-  }, [teachers, classrooms, search]);
+  }, [teachers, search]);
 
   function updateField(field, value) {
     setForm((current) => ({
@@ -223,8 +185,37 @@ function Teachers() {
     });
   }
 
-  function openModal() {
+  function openCreateModal() {
+    setEditingTeacher(null);
     setForm(EMPTY_FORM);
+    setError("");
+    setSuccess("");
+    setShowModal(true);
+  }
+
+  function openEditModal(teacher) {
+    const user =
+      typeof teacher?.user === "object" && teacher.user
+        ? teacher.user
+        : null;
+
+    setEditingTeacher(teacher);
+
+    setForm({
+      username: user?.username ?? "",
+      first_name: user?.first_name ?? "",
+      last_name: user?.last_name ?? "",
+      email: user?.email ?? "",
+      password: "",
+      confirm_password: "",
+      phone: teacher?.phone ?? "",
+      classrooms: Array.isArray(teacher?.classrooms)
+        ? teacher.classrooms.map((classroom) =>
+            typeof classroom === "object" ? classroom.id : classroom
+          )
+        : [],
+    });
+
     setError("");
     setSuccess("");
     setShowModal(true);
@@ -236,6 +227,7 @@ function Teachers() {
     }
 
     setShowModal(false);
+    setEditingTeacher(null);
     setForm(EMPTY_FORM);
     setError("");
   }
@@ -248,10 +240,49 @@ function Teachers() {
     setSuccess("");
 
     try {
-      /*
-       * The backend UserAccountSerializer creates the UserProfile
-       * and automatically creates the Teacher record when role=TEACHER.
-       */
+      if (editingTeacher) {
+        if (!editingTeacher.user?.id) {
+          throw new Error(
+            "This teacher does not have a linked login account. A login account must be created for this teacher first."
+          );
+        }
+
+        if (form.password && form.password.length < 8) {
+          throw new Error(
+            "The new password must contain at least 8 characters."
+          );
+        }
+
+        if (form.password !== form.confirm_password) {
+          throw new Error("The new passwords do not match.");
+        }
+
+        await api.patch(`/teachers/${editingTeacher.id}/`, {
+          phone: form.phone.trim(),
+          classrooms: form.classrooms,
+        });
+
+        if (form.password) {
+          await api.patch(`/users/${editingTeacher.user.id}/`, {
+            password: form.password,
+          });
+        }
+
+        setSuccess(
+          form.password
+            ? "Teacher details and login password updated successfully."
+            : "Teacher classroom assignment updated successfully."
+        );
+
+        await loadData();
+
+        setShowModal(false);
+        setEditingTeacher(null);
+        setForm(EMPTY_FORM);
+
+        return;
+      }
+
       const userResponse = await api.post("/users/", {
         username: form.username.trim(),
         first_name: form.first_name.trim(),
@@ -263,10 +294,6 @@ function Teachers() {
 
       const createdUser = userResponse.data;
 
-      /*
-       * Find the automatically-created Teacher record.
-       * We fetch the teacher list rather than assuming a teacher ID.
-       */
       const teachersResponse = await api.get("/teachers/");
       const updatedTeachers = getResults(teachersResponse.data);
 
@@ -289,25 +316,21 @@ function Teachers() {
         classrooms: form.classrooms,
       });
 
-      /*
-       * Fetch the teachers again after the PATCH so the directory
-       * immediately contains the latest phone and classroom assignments.
-       */
-      const refreshedTeachersResponse = await api.get("/teachers/");
-      const refreshedTeachers = getResults(
-        refreshedTeachersResponse.data
-      );
-
-      setTeachers(refreshedTeachers);
-
       setSuccess("Teacher account created successfully.");
+
+      await loadData();
+
       setShowModal(false);
+      setEditingTeacher(null);
       setForm(EMPTY_FORM);
     } catch (requestError) {
       setError(
         getErrorMessage(
           requestError,
-          requestError?.message || "Unable to create teacher."
+          requestError?.message ||
+            (editingTeacher
+              ? "Unable to update teacher."
+              : "Unable to create teacher.")
         )
       );
     } finally {
@@ -320,10 +343,6 @@ function Teachers() {
   const assignedClassroomCount = teachers.reduce((total, teacher) => {
     return total + (teacher.classrooms?.length ?? 0);
   }, 0);
-
-  const teacherAccountCount = teachers.filter(
-    (teacher) => getUsername(teacher)
-  ).length;
 
   return (
     <section className="space-y-6">
@@ -338,14 +357,14 @@ function Teachers() {
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#70807A]">
-            Manage teaching staff, classroom assignments and teacher
-            accounts across your school.
+            Manage teaching staff, classroom assignments and teacher accounts
+            across your school.
           </p>
         </div>
 
         <button
           type="button"
-          onClick={openModal}
+          onClick={openCreateModal}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#084936]"
         >
           <Plus size={18} />
@@ -414,7 +433,7 @@ function Teachers() {
             </div>
 
             <span className="text-2xl font-bold text-[#17382E]">
-              {teacherAccountCount}
+              {teachers.filter((teacher) => getUsername(teacher)).length}
             </span>
           </div>
 
@@ -478,7 +497,7 @@ function Teachers() {
             {!search && (
               <button
                 type="button"
-                onClick={openModal}
+                onClick={openCreateModal}
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0B5D43] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#084936]"
               >
                 <Plus size={17} />
@@ -488,61 +507,51 @@ function Teachers() {
           </div>
         ) : (
           <div className="divide-y divide-[#ECEDE8]">
-            {filteredTeachers.map((teacher) => {
-              const teacherClassrooms = getTeacherClassrooms(
-                teacher,
-                classrooms
-              );
-
-              return (
-                <div
-                  key={teacher.id}
-                  className="flex flex-col gap-4 p-5 transition hover:bg-[#FBFCF9] sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43]">
-                      {getTeacherInitials(teacher)}
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-bold text-[#17382E]">
-                        {getUserName(teacher)}
-                      </h3>
-
-                      <p className="mt-1 truncate text-xs text-[#8A9691]">
-                        @{getUsername(teacher) || "teacher"}
-                      </p>
-                    </div>
+            {filteredTeachers.map((teacher) => (
+              <div
+                key={teacher.id}
+                className="flex flex-col gap-4 p-5 transition hover:bg-[#FBFCF9] lg:flex-row lg:items-center lg:justify-between"
+              >
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43]">
+                    {getTeacherInitials(teacher)}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-[#66756F]">
-                    {teacher.phone && (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#F4F6F2] px-2.5 py-1.5">
-                        <Phone size={14} />
-                        {teacher.phone}
-                      </span>
-                    )}
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-bold text-[#17382E]">
+                      {getUserName(teacher)}
+                    </h3>
 
-                    {teacherClassrooms.length > 0 ? (
-                      teacherClassrooms.map((classroom) => (
-                        <span
-                          key={classroom.id}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#FFF7DF] px-2.5 py-1.5 font-medium text-[#8B6B14]"
-                        >
-                          <span>{classroom.grade}</span>
-                          <span className="text-[#B69A4D]">•</span>
-                          <span>{classroom.name}</span>
-                        </span>
-                      ))
-                    ) : (
-                      <span className="rounded-lg bg-[#F3F4EF] px-2.5 py-1.5 font-medium text-[#7B8984]">
-                        No classroom assigned
-                      </span>
-                    )}
+                    <p className="mt-1 truncate text-xs text-[#8A9691]">
+                      @{getUsername(teacher) || "teacher"}
+                    </p>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-[#66756F]">
+                  {teacher.phone && (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#F4F6F2] px-2.5 py-1.5">
+                      <Phone size={14} />
+                      {teacher.phone}
+                    </span>
+                  )}
+
+                  <span className="rounded-lg bg-[#FFF7DF] px-2.5 py-1.5 font-medium text-[#8B6B14]">
+                    {teacher.classrooms?.length ?? 0} classroom
+                    {(teacher.classrooms?.length ?? 0) === 1 ? "" : "s"}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(teacher)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#DDE1DB] bg-white px-3 py-1.5 font-semibold text-[#0B5D43] transition hover:border-[#0B5D43] hover:bg-[#EAF3EE]"
+                  >
+                    <Pencil size={14} />
+                    Manage
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -553,11 +562,13 @@ function Teachers() {
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E8EAE4] bg-white px-5 py-4 sm:px-6">
               <div>
                 <h2 className="text-lg font-bold text-[#17382E]">
-                  Add Teacher
+                  {editingTeacher ? "Manage Teacher" : "Add Teacher"}
                 </h2>
 
                 <p className="mt-1 text-xs text-[#8A9691]">
-                  Create a teacher account and assign classrooms.
+                  {editingTeacher
+                    ? "Update teacher details, classroom assignments and login access."
+                    : "Create a teacher account and assign classrooms."}
                 </p>
               </div>
 
@@ -572,10 +583,7 @@ function Teachers() {
               </button>
             </div>
 
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-6 p-5 sm:p-6"
-            >
+            <form onSubmit={handleSubmit} className="space-y-6 p-5 sm:p-6">
               {error && (
                 <div className="rounded-xl border border-[#F1C8C3] bg-[#FFF4F2] px-4 py-3 text-sm text-[#A33A32]">
                   {error}
@@ -597,12 +605,10 @@ function Teachers() {
                       required
                       value={form.first_name}
                       onChange={(event) =>
-                        updateField(
-                          "first_name",
-                          event.target.value
-                        )
+                        updateField("first_name", event.target.value)
                       }
-                      className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
+                      disabled={Boolean(editingTeacher)}
+                      className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10 disabled:cursor-not-allowed disabled:bg-[#F4F6F2] disabled:text-[#7B8984]"
                     />
                   </label>
 
@@ -615,12 +621,10 @@ function Teachers() {
                       required
                       value={form.last_name}
                       onChange={(event) =>
-                        updateField(
-                          "last_name",
-                          event.target.value
-                        )
+                        updateField("last_name", event.target.value)
                       }
-                      className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
+                      disabled={Boolean(editingTeacher)}
+                      className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10 disabled:cursor-not-allowed disabled:bg-[#F4F6F2] disabled:text-[#7B8984]"
                     />
                   </label>
 
@@ -633,13 +637,11 @@ function Teachers() {
                       required
                       value={form.username}
                       onChange={(event) =>
-                        updateField(
-                          "username",
-                          event.target.value
-                        )
+                        updateField("username", event.target.value)
                       }
+                      disabled={Boolean(editingTeacher)}
                       placeholder="e.g. jane.wanjiku"
-                      className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
+                      className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10 disabled:cursor-not-allowed disabled:bg-[#F4F6F2] disabled:text-[#7B8984]"
                     />
                   </label>
 
@@ -651,10 +653,7 @@ function Teachers() {
                     <input
                       value={form.phone}
                       onChange={(event) =>
-                        updateField(
-                          "phone",
-                          event.target.value
-                        )
+                        updateField("phone", event.target.value)
                       }
                       placeholder="e.g. 0712345678"
                       className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
@@ -670,40 +669,91 @@ function Teachers() {
                       type="email"
                       value={form.email}
                       onChange={(event) =>
-                        updateField(
-                          "email",
-                          event.target.value
-                        )
+                        updateField("email", event.target.value)
                       }
+                      disabled={Boolean(editingTeacher)}
                       placeholder="teacher@school.ac.ke"
-                      className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
+                      className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10 disabled:cursor-not-allowed disabled:bg-[#F4F6F2] disabled:text-[#7B8984]"
                     />
                   </label>
 
-                  <label className="block sm:col-span-2">
-                    <span className="mb-1.5 block text-xs font-semibold text-[#52635D]">
-                      Temporary password
-                    </span>
+                  {!editingTeacher ? (
+                    <label className="block sm:col-span-2">
+                      <span className="mb-1.5 block text-xs font-semibold text-[#52635D]">
+                        Temporary password
+                      </span>
 
-                    <input
-                      required
-                      minLength={8}
-                      type="password"
-                      value={form.password}
-                      onChange={(event) =>
-                        updateField(
-                          "password",
-                          event.target.value
-                        )
-                      }
-                      placeholder="At least 8 characters"
-                      className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
-                    />
+                      <input
+                        required
+                        minLength={8}
+                        type="password"
+                        value={form.password}
+                        onChange={(event) =>
+                          updateField("password", event.target.value)
+                        }
+                        placeholder="At least 8 characters"
+                        className="w-full rounded-xl border border-[#DDE1DB] px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
+                      />
 
-                    <p className="mt-1.5 text-[11px] text-[#8A9691]">
-                      The teacher can use this account to sign in.
-                    </p>
-                  </label>
+                      <p className="mt-1.5 text-[11px] text-[#8A9691]">
+                        The teacher can use this account to sign in.
+                      </p>
+                    </label>
+                  ) : (
+                    <div className="rounded-xl border border-[#DDE1DB] bg-[#FAFBF8] p-4 sm:col-span-2">
+                      <div>
+                        <h3 className="text-sm font-bold text-[#17382E]">
+                          Login Account
+                        </h3>
+
+                        <p className="mt-1 text-xs leading-5 text-[#7B8984]">
+                          Set a new password if this teacher needs login access
+                          or if you want to reset their existing password.
+                        </p>
+                      </div>
+
+                      <label className="mt-4 block">
+                        <span className="mb-1.5 block text-xs font-semibold text-[#52635D]">
+                          New password
+                        </span>
+
+                        <input
+                          minLength={8}
+                          type="password"
+                          value={form.password}
+                          onChange={(event) =>
+                            updateField("password", event.target.value)
+                          }
+                          placeholder="Leave blank to keep the current password"
+                          className="w-full rounded-xl border border-[#DDE1DB] bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
+                        />
+                      </label>
+
+                      <label className="mt-4 block">
+                        <span className="mb-1.5 block text-xs font-semibold text-[#52635D]">
+                          Confirm new password
+                        </span>
+
+                        <input
+                          minLength={8}
+                          type="password"
+                          value={form.confirm_password}
+                          onChange={(event) =>
+                            updateField(
+                              "confirm_password",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Enter the new password again"
+                          className="w-full rounded-xl border border-[#DDE1DB] bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
+                        />
+                      </label>
+
+                      <p className="mt-2 text-[11px] text-[#8A9691]">
+                        The password must contain at least 8 characters.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -731,17 +781,13 @@ function Teachers() {
                     </p>
                   ) : (
                     classrooms.map((classroom) => {
-                      const selected = form.classrooms.includes(
-                        classroom.id
-                      );
+                      const selected = form.classrooms.includes(classroom.id);
 
                       return (
                         <button
                           key={classroom.id}
                           type="button"
-                          onClick={() =>
-                            toggleClassroom(classroom.id)
-                          }
+                          onClick={() => toggleClassroom(classroom.id)}
                           className={[
                             "flex items-center justify-between rounded-xl border px-3 py-2.5 text-left transition",
                             selected
@@ -794,11 +840,24 @@ function Teachers() {
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#084936] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? (
-                    "Creating..."
+                    editingTeacher ? (
+                      "Saving..."
+                    ) : (
+                      "Creating..."
+                    )
                   ) : (
                     <>
-                      <UserPlus size={17} />
-                      Create Teacher
+                      {editingTeacher ? (
+                        <>
+                          <Check size={17} />
+                          Save Changes
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus size={17} />
+                          Create Teacher
+                        </>
+                      )}
                     </>
                   )}
                 </button>
