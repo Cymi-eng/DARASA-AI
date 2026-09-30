@@ -1,12 +1,15 @@
 from django.contrib.auth import get_user_model
 
-from rest_framework import permissions, viewsets
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ..permissions import IsSchoolAdmin
-from ..serializers import UserAccountSerializer
+from ..serializers import (
+    StudentAccountSettingsSerializer,
+    UserAccountSerializer,
+)
 from ..serializers.user_profile import CurrentUserSerializer
 
 
@@ -24,6 +27,9 @@ class UserAccountViewSet(viewsets.ModelViewSet):
 
     The /me/ endpoint is available to every authenticated
     user and returns their portal role and school context.
+
+    Students can also use /me/settings/ to update
+    their own username and password.
     """
 
     queryset = User.objects.all().select_related(
@@ -32,14 +38,12 @@ class UserAccountViewSet(viewsets.ModelViewSet):
     )
 
     serializer_class = UserAccountSerializer
-    permission_classes = [IsSchoolAdmin]
+
+    permission_classes = [
+        IsSchoolAdmin
+    ]
 
     def get_queryset(self):
-        """
-        Restrict normal administrators to users
-        belonging to their school.
-        """
-
         if self.request.user.is_superuser:
             return User.objects.all().select_related(
                 "profile",
@@ -56,20 +60,9 @@ class UserAccountViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        """
-        Create a user account.
-
-        School assignment is handled by the serializer.
-        """
-
         serializer.save()
 
     def perform_destroy(self, instance):
-        """
-        Prevent an administrator from deleting
-        their own account.
-        """
-
         if instance.pk == self.request.user.pk:
             raise ValidationError(
                 "You cannot delete your own account."
@@ -86,14 +79,48 @@ class UserAccountViewSet(viewsets.ModelViewSet):
         ],
     )
     def me(self, request):
-        """
-        Return the authenticated user's portal context.
-        """
-
         serializer = CurrentUserSerializer(
             request.user
         )
 
         return Response(
-            serializer.data
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="me/settings",
+        permission_classes=[
+            permissions.IsAuthenticated,
+        ],
+    )
+    def settings(self, request):
+        """
+        Update the authenticated user's own
+        username and/or password.
+        """
+
+        serializer = (
+            StudentAccountSettingsSerializer(
+                instance=request.user,
+                data=request.data,
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        serializer.save()
+
+        return Response(
+            {
+                "detail": (
+                    "Account settings updated successfully."
+                ),
+                "username": request.user.username,
+            },
+            status=status.HTTP_200_OK,
         )
