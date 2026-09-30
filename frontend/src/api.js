@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "https://darasa-ai.onrender.com/api";
+const API_BASE_URL = "http://127.0.0.1:8000/api";
 
 const ACCESS_TOKEN_KEY = "darasa_access_token";
 const REFRESH_TOKEN_KEY = "darasa_refresh_token";
@@ -55,7 +55,7 @@ api.interceptors.request.use(
 
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 api.interceptors.response.use(
@@ -86,7 +86,7 @@ api.interceptors.response.use(
 
       return Promise.reject(refreshError);
     }
-  }
+  },
 );
 
 export default api;
