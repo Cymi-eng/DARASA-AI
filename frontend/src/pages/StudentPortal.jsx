@@ -1,42 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
-  BookOpen,
+  BarChart3,
+  Bell,
+  BookOpenCheck,
   CheckCircle2,
   ChevronRight,
   Clock3,
-  CreditCard,
   GraduationCap,
-  Lightbulb,
   Loader2,
   RefreshCw,
-  TrendingUp,
   Wallet,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api";
 
-const masteryConfig = {
-  EE: {
-    label: "Exceeding Expectations",
-    shortLabel: "EE",
-  },
-  ME: {
-    label: "Meeting Expectations",
-    shortLabel: "ME",
-  },
-  AE: {
-    label: "Approaching Expectations",
-    shortLabel: "AE",
-  },
-  BE: {
-    label: "Below Expectations",
-    shortLabel: "BE",
-  },
+const MASTERY_LABELS = {
+  EE: "Exceeding Expectations",
+  ME: "Meeting Expectations",
+  AE: "Approaching Expectations",
+  BE: "Below Expectations",
 };
 
-const learningAreaLabels = {
+const MASTERY_STYLES = {
+  EE: "bg-[#EAF3EE] text-[#0B5D43]",
+  ME: "bg-[#EEF5E8] text-[#668B2E]",
+  AE: "bg-[#FFF7E4] text-[#9A7600]",
+  BE: "bg-[#FFF0EE] text-[#B33A31]",
+};
+
+const LEARNING_AREAS = {
   MATH: "Mathematics",
   ENG: "English",
   KIS: "Kiswahili",
@@ -47,112 +41,111 @@ const learningAreaLabels = {
   AGR: "Agriculture",
 };
 
+function getList(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.results)) {
+    return data.results;
+  }
+
+  return [];
+}
+
+function getStudentName(student) {
+  if (!student) {
+    return "Student";
+  }
+
+  const name = `${student.first_name || ""} ${
+    student.last_name || ""
+  }`.trim();
+
+  return name || student.username || "Student";
+}
+
+function getInitials(student) {
+  const name = getStudentName(student);
+
+  const parts = name.split(/\s+/).filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+
+  return name.slice(0, 2).toUpperCase();
+}
+
+function getLearningAreaLabel(value) {
+  return (
+    LEARNING_AREAS[value] ||
+    value ||
+    "Learning area"
+  );
+}
+
+function getMasteryLabel(value) {
+  return (
+    MASTERY_LABELS[value] ||
+    value ||
+    "Not assessed"
+  );
+}
+
+function getMasteryStyle(value) {
+  return (
+    MASTERY_STYLES[value] ||
+    "bg-[#F0F3F0] text-[#6D7B75]"
+  );
+}
+
 function formatDate(value) {
   if (!value) {
-    return "—";
+    return "Date unavailable";
   }
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
+  try {
+    return new Intl.DateTimeFormat(
+      "en-KE",
+      {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }
+    ).format(new Date(value));
+  } catch {
     return value;
   }
-
-  return new Intl.DateTimeFormat("en-KE", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
 }
 
 function formatCurrency(value) {
   const amount = Number(value || 0);
 
-  return new Intl.NumberFormat("en-KE", {
-    style: "currency",
-    currency: "KES",
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return `Ksh ${amount.toLocaleString(
+    "en-KE",
+    {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }
+  )}`;
 }
 
-function getMasteryLabel(value) {
-  return masteryConfig[value]?.shortLabel || value || "—";
-}
-
-function getMasteryTone(value) {
-  switch (value) {
-    case "EE":
-      return "bg-emerald-50 text-emerald-700 border-emerald-100";
-    case "ME":
-      return "bg-blue-50 text-blue-700 border-blue-100";
-    case "AE":
-      return "bg-amber-50 text-amber-700 border-amber-100";
-    case "BE":
-      return "bg-red-50 text-red-700 border-red-100";
-    default:
-      return "bg-slate-50 text-slate-600 border-slate-100";
-  }
-}
-
-function getRecommendationText(item) {
-  if (typeof item === "string") {
-    return item;
-  }
-
-  if (!item || typeof item !== "object") {
-    return "Continue practising your learning activities.";
-  }
-
-  return (
-    item.recommendation ||
-    item.description ||
-    item.message ||
-    item.action ||
-    item.title ||
-    "Continue practising your learning activities."
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  helper,
-  iconClassName = "bg-blue-50 text-blue-600",
+function SectionHeader({
+  title,
+  description,
+  action,
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-            {value}
-          </p>
-          {helper && (
-            <p className="mt-1 text-xs text-slate-500">{helper}</p>
-          )}
-        </div>
-
-        <div className={`rounded-xl p-3 ${iconClassName}`}>
-          <Icon size={20} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SectionHeader({ icon: Icon, title, description, action }) {
-  return (
-    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <div className="flex items-center gap-2">
-          {Icon && <Icon size={19} className="text-blue-600" />}
-          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
-        </div>
+        <h1 className="text-xl font-extrabold tracking-tight text-[#17382E] sm:text-2xl">
+          {title}
+        </h1>
 
-        {description && (
-          <p className="mt-1 text-sm text-slate-500">{description}</p>
-        )}
+        <p className="mt-1 text-sm leading-6 text-[#7A8982]">
+          {description}
+        </p>
       </div>
 
       {action}
@@ -160,626 +153,1373 @@ function SectionHeader({ icon: Icon, title, description, action }) {
   );
 }
 
-function EmptyState({ message }) {
+function EmptyState({
+  icon: Icon = BookOpenCheck,
+  title,
+  description,
+}) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
-      <p className="text-sm text-slate-500">{message}</p>
+    <div className="rounded-2xl border border-[#E4E8E2] bg-white px-6 py-14 text-center shadow-sm">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#EAF3EE] text-[#0B5D43]">
+        <Icon size={25} />
+      </div>
+
+      <h3 className="mt-4 text-base font-bold text-[#17382E]">
+        {title}
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#7A8982]">
+        {description}
+      </p>
     </div>
   );
 }
 
-function StudentPortal() {
-  const [user, setUser] = useState(null);
-  const [student, setStudent] = useState(null);
-  const [competencies, setCompetencies] = useState([]);
-  const [adaptiveProfile, setAdaptiveProfile] = useState(null);
-  const [recommendations, setRecommendations] = useState([]);
-  const [feeSummary, setFeeSummary] = useState(null);
-  const [payments, setPayments] = useState([]);
-  const [notifications, setNotifications] = useState([]);
+function ErrorState({
+  message,
+  onRetry,
+}) {
+  return (
+    <div className="rounded-2xl border border-[#F0D8D5] bg-[#FFF8F7] px-6 py-10 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#FCEAE7] text-[#B33A31]">
+        <AlertCircle size={23} />
+      </div>
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
+      <h3 className="mt-4 font-bold text-[#7D312C]">
+        Unable to load workspace
+      </h3>
 
-  const loadPortal = async ({ silent = false } = {}) => {
-    if (!silent) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#8D6B67]">
+        {message}
+      </p>
 
-    setError("");
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0B5D43] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#084936]"
+      >
+        <RefreshCw size={16} />
+        Try again
+      </button>
+    </div>
+  );
+}
 
-    try {
-      const userResponse = await api.get("/users/me/");
-      const studentResponse = await api.get("/students/me/");
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  description,
+}) {
+  return (
+    <div className="rounded-2xl border border-[#E4E8E2] bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#8A9691]">
+            {label}
+          </p>
 
-      const currentUser = userResponse.data;
-      const currentStudent = studentResponse.data;
+          <p className="mt-3 text-3xl font-extrabold tracking-tight text-[#17382E]">
+            {value}
+          </p>
 
-      setUser(currentUser);
-      setStudent(currentStudent);
+          <p className="mt-1 text-xs text-[#89958F]">
+            {description}
+          </p>
+        </div>
 
-      const studentId = currentStudent?.id;
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
+          <Icon size={19} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      const requests = [
-        api.get("/competencies/"),
-        api.get("/fee-ledger/summary/"),
-        api.get("/fee-payments/"),
-        api.get("/notifications/"),
-      ];
+function StudentOverview({
+  student,
+  competencies,
+  recommendations,
+  ledger,
+  payments,
+  notifications,
+  adaptiveProfile,
+}) {
+  const total = competencies.length;
 
-      if (studentId) {
-        requests.push(
-          api.get(`/students/${studentId}/adaptive-profile/`),
-          api.get(`/students/${studentId}/recommendations/`),
-        );
-      }
+  const masteryCounts = useMemo(
+    () => ({
+      EE: competencies.filter(
+        (item) =>
+          item.mastery_level === "EE"
+      ).length,
 
-      const responses = await Promise.allSettled(requests);
+      ME: competencies.filter(
+        (item) =>
+          item.mastery_level === "ME"
+      ).length,
 
-      const [
-        competencyResponse,
-        feeSummaryResponse,
-        paymentsResponse,
-        notificationsResponse,
-        adaptiveResponse,
-        recommendationResponse,
-      ] = responses;
+      AE: competencies.filter(
+        (item) =>
+          item.mastery_level === "AE"
+      ).length,
 
-      if (competencyResponse.status === "fulfilled") {
-        setCompetencies(
-          Array.isArray(competencyResponse.value.data)
-            ? competencyResponse.value.data
-            : competencyResponse.value.data?.results || [],
-        );
-      }
-
-      if (feeSummaryResponse.status === "fulfilled") {
-        setFeeSummary(feeSummaryResponse.value.data);
-      }
-
-      if (paymentsResponse.status === "fulfilled") {
-        setPayments(
-          Array.isArray(paymentsResponse.value.data)
-            ? paymentsResponse.value.data
-            : paymentsResponse.value.data?.results || [],
-        );
-      }
-
-      if (notificationsResponse.status === "fulfilled") {
-        setNotifications(
-          Array.isArray(notificationsResponse.value.data)
-            ? notificationsResponse.value.data
-            : notificationsResponse.value.data?.results || [],
-        );
-      }
-
-      if (adaptiveResponse?.status === "fulfilled") {
-        setAdaptiveProfile(adaptiveResponse.value.data);
-      }
-
-      if (recommendationResponse?.status === "fulfilled") {
-        const data = recommendationResponse.value.data;
-
-        setRecommendations(
-          Array.isArray(data)
-            ? data
-            : data?.recommendations || data?.results || [],
-        );
-      }
-    } catch (requestError) {
-      const detail =
-        requestError?.response?.data?.detail ||
-        "We couldn't load your student portal. Please try again.";
-
-      setError(detail);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    loadPortal();
-  }, []);
-
-  const masteryStats = useMemo(() => {
-    const stats = {
-      EE: 0,
-      ME: 0,
-      AE: 0,
-      BE: 0,
-    };
-
-    competencies.forEach((item) => {
-      if (stats[item.mastery_level] !== undefined) {
-        stats[item.mastery_level] += 1;
-      }
-    });
-
-    return stats;
-  }, [competencies]);
-
-  const masteryRate = useMemo(() => {
-    if (!competencies.length) {
-      return 0;
-    }
-
-    const demonstrated =
-      masteryStats.EE + masteryStats.ME;
-
-    return Math.round(
-      (demonstrated / competencies.length) * 100,
-    );
-  }, [competencies, masteryStats]);
-
-  const learningAreas = useMemo(() => {
-    const grouped = {};
-
-    competencies.forEach((item) => {
-      const key = item.learning_area || "OTHER";
-
-      if (!grouped[key]) {
-        grouped[key] = {
-          total: 0,
-          mastered: 0,
-          latest: null,
-        };
-      }
-
-      grouped[key].total += 1;
-
-      if (item.mastery_level === "EE" || item.mastery_level === "ME") {
-        grouped[key].mastered += 1;
-      }
-
-      if (
-        !grouped[key].latest ||
-        new Date(item.assessed_on) >
-          new Date(grouped[key].latest.assessed_on)
-      ) {
-        grouped[key].latest = item;
-      }
-    });
-
-    return Object.entries(grouped)
-      .map(([key, value]) => ({
-        key,
-        label: learningAreaLabels[key] || key,
-        ...value,
-        percentage: value.total
-          ? Math.round((value.mastered / value.total) * 100)
-          : 0,
-      }))
-      .sort((a, b) => b.percentage - a.percentage);
-  }, [competencies]);
-
-  const recentCompetencies = useMemo(
-    () => competencies.slice(0, 5),
+      BE: competencies.filter(
+        (item) =>
+          item.mastery_level === "BE"
+      ).length,
+    }),
     [competencies],
   );
 
-  const recentPayments = useMemo(
-    () => payments.slice(0, 5),
-    [payments],
-  );
+  const masteryPercentage =
+    total > 0
+      ? Math.round(
+          ((masteryCounts.EE +
+            masteryCounts.ME) /
+            total) *
+            100
+        )
+      : 0;
 
-  const unreadNotifications = useMemo(
-    () =>
-      notifications.filter(
-        (item) =>
-          item.status === "PENDING" ||
-          item.status === "UNREAD" ||
-          item.is_read === false,
-      ),
-    [notifications],
-  );
-
-  const firstName =
-    student?.first_name ||
-    user?.first_name ||
-    user?.username ||
-    "Learner";
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[70vh] items-center justify-center">
-        <div className="flex items-center gap-3 text-sm font-medium text-slate-500">
-          <Loader2 size={20} className="animate-spin text-blue-600" />
-          Loading your learning workspace...
-        </div>
-      </div>
-    );
-  }
+  const recentAssessments =
+    competencies.slice(0, 5);
 
   return (
-    <div className="space-y-6 pb-10">
-      <section className="overflow-hidden rounded-3xl bg-slate-950 px-6 py-8 text-white shadow-xl sm:px-8">
+    <div className="space-y-6">
+      <div className="overflow-hidden rounded-3xl bg-[#0B5D43] p-6 text-white shadow-sm sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-blue-300">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#B9D9CA]">
               Student Learning Workspace
             </p>
 
-            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              Welcome back, {firstName}.
+            <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+              Welcome back,{" "}
+              {student?.first_name ||
+                "Student"}
+              .
             </h1>
 
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-              Track your CBC progress, review assessments, follow
-              personalised recommendations, and stay up to date with
-              your school.
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#D2E7DC]">
+              Track your CBC progress,
+              review assessments, follow
+              personalised recommendations,
+              and stay up to date with your
+              school.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
               {student?.grade && (
-                <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
+                <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">
                   {student.grade}
                 </span>
               )}
 
               {student?.admission_number && (
-                <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
+                <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">
                   {student.admission_number}
                 </span>
               )}
 
-              {student?.classroom_name && (
-                <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
-                  {student.classroom_name}
+              {student?.classroom?.name && (
+                <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">
+                  {student.classroom.name}
                 </span>
               )}
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => loadPortal({ silent: true })}
-            disabled={refreshing}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw
-              size={17}
-              className={refreshing ? "animate-spin" : ""}
-            />
-            Refresh workspace
-          </button>
-        </div>
-      </section>
-
-      {error && (
-        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle size={19} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">Something went wrong</p>
-            <p className="mt-1">{error}</p>
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-white/10 text-2xl font-extrabold ring-1 ring-white/20">
+            {getInitials(student)}
           </div>
         </div>
-      )}
+      </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          icon={TrendingUp}
+          icon={BarChart3}
           label="Mastery progress"
-          value={`${masteryRate}%`}
-          helper={`${competencies.length} assessments recorded`}
-          iconClassName="bg-blue-50 text-blue-600"
+          value={`${masteryPercentage}%`}
+          description={`${total} assessments recorded`}
         />
 
         <StatCard
-          icon={BookOpen}
+          icon={GraduationCap}
           label="Learning areas"
-          value={learningAreas.length}
-          helper="Areas with recorded assessments"
-          iconClassName="bg-violet-50 text-violet-600"
+          value={
+            new Set(
+              competencies.map(
+                (item) =>
+                  item.learning_area
+              )
+            ).size
+          }
+          description="Areas with recorded assessments"
         />
 
         <StatCard
           icon={Wallet}
           label="Fee account"
-          value={formatCurrency(feeSummary?.net_balance)}
-          helper="Net recorded balance"
-          iconClassName="bg-emerald-50 text-emerald-600"
+          value={formatCurrency(
+            ledger?.balance || 0
+          )}
+          description="Net recorded balance"
         />
 
         <StatCard
-          icon={Clock3}
+          icon={Bell}
           label="Notifications"
-          value={unreadNotifications.length}
-          helper="Items requiring your attention"
-          iconClassName="bg-amber-50 text-amber-600"
+          value={notifications.length}
+          description="Items requiring your attention"
         />
-      </section>
+      </div>
 
-      <section className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader
-            icon={GraduationCap}
-            title="Learning progress"
-            description="Your latest CBC competency performance by learning area."
-          />
+      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+        <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+          <div className="border-b border-[#E9ECE7] px-5 py-4">
+            <h2 className="font-bold text-[#17382E]">
+              Learning progress
+            </h2>
 
-          {learningAreas.length === 0 ? (
-            <EmptyState message="No competency assessments have been recorded yet." />
+            <p className="mt-1 text-xs text-[#87938D]">
+              Your latest CBC competency
+              performance by learning area.
+            </p>
+          </div>
+
+          {competencies.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <BookOpenCheck
+                size={28}
+                className="mx-auto text-[#A0AAA5]"
+              />
+
+              <p className="mt-3 text-sm font-semibold text-[#596861]">
+                No competency assessments
+                have been recorded yet.
+              </p>
+            </div>
           ) : (
-            <div className="space-y-5">
-              {learningAreas.map((area) => (
-                <div key={area.key}>
-                  <div className="mb-2 flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">
-                        {area.label}
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+              {Object.entries(
+                LEARNING_AREAS
+              ).map(
+                ([code, label]) => {
+                  const records =
+                    competencies.filter(
+                      (item) =>
+                        item.learning_area ===
+                        code
+                    );
+
+                  if (!records.length) {
+                    return null;
+                  }
+
+                  const mastered =
+                    records.filter(
+                      (item) =>
+                        item.mastery_level ===
+                          "EE" ||
+                        item.mastery_level ===
+                          "ME"
+                    ).length;
+
+                  const percentage =
+                    Math.round(
+                      (mastered /
+                        records.length) *
+                        100
+                    );
+
+                  return (
+                    <div
+                      key={code}
+                      className="rounded-xl border border-[#E8ECE7] bg-[#FAFBF9] p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-[#8A9691]">
+                            {code}
+                          </p>
+
+                          <p className="mt-1 text-sm font-bold text-[#294A3F]">
+                            {label}
+                          </p>
+                        </div>
+
+                        <span className="text-sm font-extrabold text-[#0B5D43]">
+                          {percentage}%
+                        </span>
+                      </div>
+
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5EAE5]">
+                        <div
+                          className="h-full rounded-full bg-[#0B5D43]"
+                          style={{
+                            width: `${percentage}%`,
+                          }}
+                        />
+                      </div>
+
+                      <p className="mt-2 text-[11px] text-[#89958F]">
+                        {records.length} assessment
+                        {records.length === 1
+                          ? ""
+                          : "s"}
                       </p>
-                      <p className="text-xs text-slate-500">
-                        {area.mastered} of {area.total} assessments at
-                        meeting or exceeding expectations
+                    </div>
+                  );
+                }
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+          <div className="border-b border-[#E9ECE7] px-5 py-4">
+            <h2 className="font-bold text-[#17382E]">
+              Mastery overview
+            </h2>
+          </div>
+
+          <div className="space-y-3 p-5">
+            {Object.entries(
+              masteryCounts
+            ).map(([level, count]) => (
+              <div
+                key={level}
+                className="flex items-center justify-between rounded-xl bg-[#FAFBF9] px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[#294A3F]">
+                    {level}
+                  </p>
+
+                  <p className="text-[11px] text-[#89958F]">
+                    {getMasteryLabel(level)}
+                  </p>
+                </div>
+
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${getMasteryStyle(
+                    level
+                  )}`}
+                >
+                  {count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#E9ECE7] px-5 py-4">
+            <div>
+              <h2 className="font-bold text-[#17382E]">
+                Recent assessments
+              </h2>
+
+              <p className="mt-1 text-xs text-[#87938D]">
+                Your latest competency records.
+              </p>
+            </div>
+          </div>
+
+          {recentAssessments.length === 0 ? (
+            <p className="px-5 py-10 text-center text-sm text-[#7A8982]">
+              No recent competency records.
+            </p>
+          ) : (
+            <div className="divide-y divide-[#EEF0EC]">
+              {recentAssessments.map(
+                (item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-4 px-5 py-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-[#294A3F]">
+                        {getLearningAreaLabel(
+                          item.learning_area
+                        )}
+                      </p>
+
+                      <p className="mt-1 truncate text-xs text-[#89958F]">
+                        {item.strand ||
+                          "Competency assessment"}
                       </p>
                     </div>
 
-                    <span className="text-sm font-bold text-slate-900">
-                      {area.percentage}%
+                    <div className="shrink-0 text-right">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${getMasteryStyle(
+                          item.mastery_level
+                        )}`}
+                      >
+                        {item.mastery_level}
+                      </span>
+
+                      <p className="mt-2 text-[10px] text-[#9AA49F]">
+                        {formatDate(
+                          item.assessed_on
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+          <div className="border-b border-[#E9ECE7] px-5 py-4">
+            <h2 className="font-bold text-[#17382E]">
+              Personalised recommendations
+            </h2>
+
+            <p className="mt-1 text-xs text-[#87938D]">
+              Suggestions generated from your
+              learning history.
+            </p>
+          </div>
+
+          {recommendations.length === 0 ? (
+            <div className="px-5 py-10 text-center">
+              <GraduationCap
+                size={28}
+                className="mx-auto text-[#A0AAA5]"
+              />
+
+              <p className="mt-3 text-sm text-[#7A8982]">
+                No personalised
+                recommendations are available
+                yet.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#EEF0EC]">
+              {recommendations
+                .slice(0, 4)
+                .map(
+                  (
+                    recommendation,
+                    index
+                  ) => (
+                    <div
+                      key={
+                        recommendation.id ||
+                        index
+                      }
+                      className="flex gap-3 px-5 py-4"
+                    >
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#EAF3EE] text-[#0B5D43]">
+                        <ArrowRight
+                          size={15}
+                        />
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-bold text-[#294A3F]">
+                          {recommendation.title ||
+                            recommendation.learning_area ||
+                            "Learning recommendation"}
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-[#7A8982]">
+                          {recommendation.description ||
+                            recommendation.reason ||
+                            recommendation.message ||
+                            "Continue practising this learning area."}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+          <div className="border-b border-[#E9ECE7] px-5 py-4">
+            <h2 className="font-bold text-[#17382E]">
+              Fee activity
+            </h2>
+          </div>
+
+          {payments.length === 0 ? (
+            <p className="px-5 py-10 text-center text-sm text-[#7A8982]">
+              No fee payment records.
+            </p>
+          ) : (
+            <div className="divide-y divide-[#EEF0EC]">
+              {payments
+                .slice(0, 4)
+                .map((payment) => (
+                  <div
+                    key={payment.id}
+                    className="flex items-center justify-between gap-4 px-5 py-4"
+                  >
+                    <div>
+                      <p className="text-sm font-bold text-[#294A3F]">
+                        {payment.transaction_id ||
+                          payment.mpesa_receipt_number ||
+                          "Fee payment"}
+                      </p>
+
+                      <p className="mt-1 text-xs text-[#89958F]">
+                        {formatDate(
+                          payment.paid_at ||
+                            payment.created_at
+                        )}
+                      </p>
+                    </div>
+
+                    <p className="font-bold text-[#0B5D43]">
+                      {formatCurrency(
+                        payment.amount
+                      )}
+                    </p>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+          <div className="border-b border-[#E9ECE7] px-5 py-4">
+            <h2 className="font-bold text-[#17382E]">
+              Notifications
+            </h2>
+          </div>
+
+          {notifications.length === 0 ? (
+            <p className="px-5 py-10 text-center text-sm text-[#7A8982]">
+              No notifications yet.
+            </p>
+          ) : (
+            <div className="divide-y divide-[#EEF0EC]">
+              {notifications
+                .slice(0, 4)
+                .map((notification) => (
+                  <div
+                    key={notification.id}
+                    className="flex gap-3 px-5 py-4"
+                  >
+                    <Bell
+                      size={17}
+                      className="mt-0.5 shrink-0 text-[#0B5D43]"
+                    />
+
+                    <div>
+                      <p className="text-sm font-bold text-[#294A3F]">
+                        {notification.subject ||
+                          "School notification"}
+                      </p>
+
+                      <p className="mt-1 text-xs leading-5 text-[#7A8982]">
+                        {notification.message ||
+                          "You have a new notification."}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-[#DCE9E1] bg-[#F2F8F4] p-5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-[#0B5D43] shadow-sm">
+            <BarChart3 size={20} />
+          </div>
+
+          <div>
+            <h2 className="font-bold text-[#17382E]">
+              Your adaptive learning profile
+            </h2>
+
+            <p className="mt-1 text-sm leading-6 text-[#6F8078]">
+              Insights generated from your
+              competency history.
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-3">
+              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#456057]">
+                Intervention count{" "}
+                {adaptiveProfile?.intervention_count ||
+                  0}
+              </span>
+
+              {adaptiveProfile?.overall_mastery && (
+                <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#456057]">
+                  Overall mastery{" "}
+                  {
+                    adaptiveProfile.overall_mastery
+                  }
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StudentProgress({
+  competencies,
+}) {
+  const total = competencies.length;
+
+  const masteryCounts = {
+    EE: competencies.filter(
+      (item) =>
+        item.mastery_level === "EE"
+    ).length,
+
+    ME: competencies.filter(
+      (item) =>
+        item.mastery_level === "ME"
+    ).length,
+
+    AE: competencies.filter(
+      (item) =>
+        item.mastery_level === "AE"
+    ).length,
+
+    BE: competencies.filter(
+      (item) =>
+        item.mastery_level === "BE"
+    ).length,
+  };
+
+  const mastered =
+    masteryCounts.EE +
+    masteryCounts.ME;
+
+  const masteryPercentage =
+    total > 0
+      ? Math.round(
+          (mastered / total) * 100
+        )
+      : 0;
+
+  return (
+    <div>
+      <SectionHeader
+        title="My Progress"
+        description="Track your CBC competency development across learning areas."
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          icon={BarChart3}
+          label="Overall mastery"
+          value={`${masteryPercentage}%`}
+          description="EE + ME assessments"
+        />
+
+        <StatCard
+          icon={BookOpenCheck}
+          label="Assessments"
+          value={total}
+          description="Recorded competency records"
+        />
+
+        <StatCard
+          icon={GraduationCap}
+          label="Developing areas"
+          value={
+            masteryCounts.AE +
+            masteryCounts.BE
+          }
+          description="Assessments needing attention"
+        />
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+        <div className="border-b border-[#E9ECE7] px-5 py-4">
+          <h2 className="font-bold text-[#17382E]">
+            Learning areas
+          </h2>
+
+          <p className="mt-1 text-xs text-[#87938D]">
+            Your competency records by CBC
+            learning area.
+          </p>
+        </div>
+
+        {total === 0 ? (
+          <div className="p-6">
+            <EmptyState
+              title="No progress recorded yet"
+              description="Your progress will appear here when your teachers record competency assessments."
+            />
+          </div>
+        ) : (
+          <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(
+              LEARNING_AREAS
+            ).map(([code, label]) => {
+              const records =
+                competencies.filter(
+                  (item) =>
+                    item.learning_area ===
+                    code
+                );
+
+              const mastered =
+                records.filter(
+                  (item) =>
+                    item.mastery_level ===
+                      "EE" ||
+                    item.mastery_level ===
+                      "ME"
+                ).length;
+
+              const percentage =
+                records.length
+                  ? Math.round(
+                      (mastered /
+                        records.length) *
+                        100
+                    )
+                  : 0;
+
+              return (
+                <div
+                  key={code}
+                  className="rounded-2xl border border-[#E8ECE7] bg-[#FAFBF9] p-4"
+                >
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#8A9691]">
+                    {code}
+                  </p>
+
+                  <p className="mt-1 font-bold text-[#294A3F]">
+                    {label}
+                  </p>
+
+                  <div className="mt-4 flex items-end justify-between">
+                    <span className="text-2xl font-extrabold text-[#0B5D43]">
+                      {percentage}%
+                    </span>
+
+                    <span className="text-xs text-[#89958F]">
+                      {records.length} records
                     </span>
                   </div>
 
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E5EAE5]">
                     <div
-                      className="h-full rounded-full bg-blue-600 transition-all"
+                      className="h-full rounded-full bg-[#0B5D43]"
                       style={{
-                        width: `${area.percentage}%`,
+                        width: `${percentage}%`,
                       }}
                     />
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+        <div className="border-b border-[#E9ECE7] px-5 py-4">
+          <h2 className="font-bold text-[#17382E]">
+            Mastery breakdown
+          </h2>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader
-            icon={TrendingUp}
-            title="Mastery overview"
-            description="Assessment distribution."
-          />
-
-          <div className="space-y-3">
-            {Object.entries(masteryConfig).map(
-              ([key, config]) => (
-                <div
-                  key={key}
-                  className={`flex items-center justify-between rounded-xl border px-4 py-3 ${getMasteryTone(
-                    key,
+        <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
+          {Object.entries(
+            masteryCounts
+          ).map(([level, count]) => (
+            <div
+              key={level}
+              className="rounded-xl border border-[#E8ECE7] p-4"
+            >
+              <div className="flex items-center justify-between">
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${getMasteryStyle(
+                    level
                   )}`}
                 >
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {config.shortLabel}
-                    </p>
-                    <p className="mt-0.5 text-xs opacity-80">
-                      {config.label}
-                    </p>
-                  </div>
+                  {level}
+                </span>
 
-                  <span className="text-lg font-bold">
-                    {masteryStats[key]}
-                  </span>
-                </div>
-              ),
-            )}
+                <span className="text-2xl font-extrabold text-[#17382E]">
+                  {count}
+                </span>
+              </div>
+
+              <p className="mt-3 text-xs text-[#7A8982]">
+                {getMasteryLabel(level)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StudentAssessments({
+  competencies,
+}) {
+  return (
+    <div>
+      <SectionHeader
+        title="My Assessments"
+        description="Review the competency assessments recorded by your teachers."
+      />
+
+      {competencies.length === 0 ? (
+        <EmptyState
+          title="No assessments yet"
+          description="Your competency assessments will appear here once your teacher records learning evidence."
+        />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px]">
+              <thead>
+                <tr className="border-b border-[#E9ECE7] bg-[#FAFBF9] text-left">
+                  <th className="px-5 py-4 text-[11px] font-bold uppercase tracking-wide text-[#87938D]">
+                    Learning area
+                  </th>
+
+                  <th className="px-5 py-4 text-[11px] font-bold uppercase tracking-wide text-[#87938D]">
+                    Strand
+                  </th>
+
+                  <th className="px-5 py-4 text-[11px] font-bold uppercase tracking-wide text-[#87938D]">
+                    Mastery
+                  </th>
+
+                  <th className="px-5 py-4 text-[11px] font-bold uppercase tracking-wide text-[#87938D]">
+                    Date
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {competencies.map(
+                  (item) => (
+                    <tr
+                      key={item.id}
+                      className="border-b border-[#EEF0EC] last:border-0"
+                    >
+                      <td className="px-5 py-4">
+                        <p className="text-sm font-bold text-[#294A3F]">
+                          {getLearningAreaLabel(
+                            item.learning_area
+                          )}
+                        </p>
+
+                        <p className="mt-1 text-xs text-[#89958F]">
+                          {item.sub_strand ||
+                            ""}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-[#68766F]">
+                        {item.strand || "—"}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${getMasteryStyle(
+                            item.mastery_level
+                          )}`}
+                        >
+                          {item.mastery_level ||
+                            "—"}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-[#68766F]">
+                        {formatDate(
+                          item.assessed_on
+                        )}
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      </section>
+      )}
+    </div>
+  );
+}
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader
-            icon={BookOpen}
-            title="Recent assessments"
-            description="Your most recent competency records."
-          />
+function StudentRecommendations({
+  recommendations,
+}) {
+  return (
+    <div>
+      <SectionHeader
+        title="Personalised Recommendations"
+        description="Learning suggestions generated from your competency history."
+      />
 
-          {recentCompetencies.length === 0 ? (
-            <EmptyState message="No recent assessments available." />
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {recentCompetencies.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-800">
-                      {learningAreaLabels[item.learning_area] ||
-                        item.learning_area ||
-                        "Learning area"}
-                    </p>
-
-                    <p className="mt-1 truncate text-xs text-slate-500">
-                      {item.strand ||
-                        item.sub_strand ||
-                        item.notes ||
-                        "Competency assessment"}
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-400">
-                      {formatDate(item.assessed_on)}
-                    </p>
-                  </div>
-
-                  <span
-                    className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${getMasteryTone(
-                      item.mastery_level,
-                    )}`}
-                  >
-                    {getMasteryLabel(item.mastery_level)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader
-            icon={Lightbulb}
-            title="Personalised recommendations"
-            description="Suggestions based on your learning profile."
-          />
-
-          {recommendations.length === 0 ? (
-            <EmptyState message="No personalised recommendations are available yet." />
-          ) : (
-            <div className="space-y-3">
-              {recommendations.slice(0, 5).map((item, index) => (
-                <div
-                  key={item?.id || index}
-                  className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4"
-                >
-                  <div className="mt-0.5 rounded-lg bg-blue-100 p-2 text-blue-600">
-                    <ArrowRight size={16} />
-                  </div>
-
-                  <p className="text-sm leading-6 text-slate-700">
-                    {getRecommendationText(item)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader
-            icon={CreditCard}
-            title="Fee activity"
-            description="Recent payment records on your account."
-          />
-
-          {recentPayments.length === 0 ? (
-            <EmptyState message="No fee payment records are available." />
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {recentPayments.map((payment) => (
-                <div
-                  key={payment.id}
-                  className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800">
-                      {formatCurrency(payment.amount)}
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      {payment.mpesa_receipt_number ||
-                        payment.transaction_id ||
-                        "Payment record"}
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-400">
-                      {formatDate(payment.paid_at || payment.created_at)}
-                    </p>
-                  </div>
-
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      payment.status === "CONFIRMED"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : payment.status === "FAILED"
-                          ? "bg-red-50 text-red-700"
-                          : "bg-amber-50 text-amber-700"
-                    }`}
-                  >
-                    {payment.status || "PENDING"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeader
-            icon={CheckCircle2}
-            title="Notifications"
-            description="Latest messages from your school."
-          />
-
-          {notifications.length === 0 ? (
-            <EmptyState message="You don't have any notifications yet." />
-          ) : (
-            <div className="space-y-3">
-              {notifications.slice(0, 5).map((item, index) => (
-                <div
-                  key={item.id || index}
-                  className="rounded-xl border border-slate-100 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-800">
-                      {item.title ||
-                        item.subject ||
-                        "School notification"}
-                    </p>
-
-                    <ChevronRight
-                      size={16}
-                      className="shrink-0 text-slate-400"
+      {!recommendations.length ? (
+        <EmptyState
+          icon={GraduationCap}
+          title="No recommendations yet"
+          description="As more competency evidence is recorded, Darasa-AI will generate personalised learning recommendations for you."
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {recommendations.map(
+            (
+              recommendation,
+              index
+            ) => (
+              <div
+                key={
+                  recommendation.id ||
+                  index
+                }
+                className="rounded-2xl border border-[#E4E8E2] bg-white p-5 shadow-sm"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
+                    <GraduationCap
+                      size={20}
                     />
                   </div>
 
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    {item.message ||
-                      item.content ||
-                      item.body ||
-                      "You have a new notification."}
-                  </p>
+                  <div>
+                    <h3 className="font-bold text-[#17382E]">
+                      {recommendation.title ||
+                        recommendation.learning_area ||
+                        "Learning recommendation"}
+                    </h3>
 
-                  <p className="mt-2 text-xs text-slate-400">
-                    {formatDate(item.created_at)}
-                  </p>
+                    <p className="mt-2 text-sm leading-6 text-[#718078]">
+                      {recommendation.description ||
+                        recommendation.reason ||
+                        recommendation.message ||
+                        "Continue practising this learning area and review your latest assessment feedback."}
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            )
           )}
         </div>
-      </section>
+      )}
+    </div>
+  );
+}
 
-      {adaptiveProfile && (
-        <section className="rounded-2xl border border-blue-100 bg-blue-50/50 p-6 shadow-sm">
-          <SectionHeader
-            icon={Lightbulb}
-            title="Your adaptive learning profile"
-            description="Insights generated from your competency history."
+function StudentFees({
+  ledger,
+  payments,
+}) {
+  return (
+    <div>
+      <SectionHeader
+        title="Fees"
+        description="Review your recorded school fee activity."
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          icon={Wallet}
+          label="Net balance"
+          value={formatCurrency(
+            ledger?.balance || 0
+          )}
+          description="Recorded account balance"
+        />
+
+        <StatCard
+          icon={CheckCircle2}
+          label="Payments"
+          value={payments.length}
+          description="Recorded transactions"
+        />
+
+        <StatCard
+          icon={Clock3}
+          label="Account"
+          value="Active"
+          description="Student fee account"
+        />
+      </div>
+
+      <div className="mt-6 overflow-hidden rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
+        <div className="border-b border-[#E9ECE7] px-5 py-4">
+          <h2 className="font-bold text-[#17382E]">
+            Fee activity
+          </h2>
+        </div>
+
+        {!payments.length ? (
+          <div className="px-6 py-12 text-center text-sm text-[#7A8982]">
+            No fee payment records have been
+            recorded.
+          </div>
+        ) : (
+          <div className="divide-y divide-[#EEF0EC]">
+            {payments.map((payment) => (
+              <div
+                key={payment.id}
+                className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[#294A3F]">
+                    {payment.transaction_id ||
+                      payment.mpesa_receipt_number ||
+                      "Fee payment"}
+                  </p>
+
+                  <p className="mt-1 text-xs text-[#89958F]">
+                    {formatDate(
+                      payment.paid_at ||
+                        payment.created_at
+                    )}
+                  </p>
+
+                  {payment.status && (
+                    <span className="mt-2 inline-flex rounded-full bg-[#EAF3EE] px-2.5 py-1 text-[10px] font-bold text-[#0B5D43]">
+                      {payment.status}
+                    </span>
+                  )}
+                </div>
+
+                <p className="font-bold text-[#0B5D43]">
+                  {formatCurrency(
+                    payment.amount
+                  )}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StudentNotifications({
+  notifications,
+}) {
+  return (
+    <div>
+      <SectionHeader
+        title="Notifications"
+        description="Stay updated with important school and learning information."
+      />
+
+      {!notifications.length ? (
+        <EmptyState
+          icon={Bell}
+          title="No notifications"
+          description="You are all caught up. New school and learning notifications will appear here."
+        />
+      ) : (
+        <div className="space-y-3">
+          {notifications.map(
+            (notification) => (
+              <div
+                key={notification.id}
+                className="rounded-2xl border border-[#E4E8E2] bg-white p-5 shadow-sm"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
+                    <Bell size={18} />
+                  </div>
+
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-[#17382E]">
+                      {notification.subject ||
+                        "School notification"}
+                    </h3>
+
+                    <p className="mt-1 text-sm leading-6 text-[#718078]">
+                      {notification.message ||
+                        "You have a new notification."}
+                    </p>
+
+                    <p className="mt-2 text-[11px] text-[#98A39E]">
+                      {formatDate(
+                        notification.sent_at ||
+                          notification.created_at
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StudentPortal({
+  section = "overview",
+}) {
+  const [student, setStudent] =
+    useState(null);
+
+  const [competencies, setCompetencies] =
+    useState([]);
+
+  const [ledger, setLedger] =
+    useState(null);
+
+  const [payments, setPayments] =
+    useState([]);
+
+  const [notifications, setNotifications] =
+    useState([]);
+
+  const [recommendations, setRecommendations] =
+    useState([]);
+
+  const [adaptiveProfile, setAdaptiveProfile] =
+    useState(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+  const loadWorkspace =
+    useCallback(async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const [
+          studentResponse,
+          competenciesResponse,
+          ledgerResponse,
+          paymentsResponse,
+          notificationsResponse,
+        ] = await Promise.all([
+          api.get("/students/me/"),
+          api.get("/competencies/"),
+          api.get("/fee-ledger/summary/"),
+          api.get("/fee-payments/"),
+          api.get("/notifications/"),
+        ]);
+
+        const studentData =
+          studentResponse.data;
+
+        const competencyData =
+          getList(
+            competenciesResponse.data
+          );
+
+        const paymentData =
+          getList(
+            paymentsResponse.data
+          );
+
+        const notificationData =
+          getList(
+            notificationsResponse.data
+          );
+
+        setStudent(studentData);
+        setCompetencies(
+          competencyData
+        );
+        setLedger(
+          ledgerResponse.data
+        );
+        setPayments(paymentData);
+        setNotifications(
+          notificationData
+        );
+
+        if (studentData?.id) {
+          const [
+            adaptiveResponse,
+            recommendationsResponse,
+          ] = await Promise.allSettled([
+            api.get(
+              `/students/${studentData.id}/adaptive-profile/`
+            ),
+            api.get(
+              `/students/${studentData.id}/recommendations/`
+            ),
+          ]);
+
+          if (
+            adaptiveResponse.status ===
+            "fulfilled"
+          ) {
+            setAdaptiveProfile(
+              adaptiveResponse.value.data
+            );
+          }
+
+          if (
+            recommendationsResponse.status ===
+            "fulfilled"
+          ) {
+            setRecommendations(
+              getList(
+                recommendationsResponse
+                  .value.data
+              )
+            );
+          }
+        }
+      } catch (requestError) {
+        console.error(
+          "Student workspace error:",
+          requestError
+        );
+
+        setError(
+          requestError.response?.data
+            ?.detail ||
+            "We could not load your student workspace. Please try again."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }, []);
+
+  useEffect(() => {
+    loadWorkspace();
+  }, [loadWorkspace]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center">
+          <Loader2
+            size={30}
+            className="animate-spin text-[#0B5D43]"
           />
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(adaptiveProfile)
-              .filter(
-                ([, value]) =>
-                  typeof value !== "object" &&
-                  value !== null,
-              )
-              .slice(0, 6)
-              .map(([key, value]) => (
-                <div
-                  key={key}
-                  className="rounded-xl border border-blue-100 bg-white p-4"
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                    {key.replaceAll("_", " ")}
-                  </p>
+          <p className="mt-4 text-sm font-medium text-[#718078]">
+            Loading your learning workspace...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-                  <p className="mt-2 text-sm font-semibold text-slate-800">
-                    {String(value)}
-                  </p>
-                </div>
-              ))}
-          </div>
-        </section>
+  if (error && !student) {
+    return (
+      <ErrorState
+        message={error}
+        onRetry={loadWorkspace}
+      />
+    );
+  }
+
+  if (section === "progress") {
+    return (
+      <StudentProgress
+        competencies={competencies}
+      />
+    );
+  }
+
+  if (section === "assessments") {
+    return (
+      <StudentAssessments
+        competencies={competencies}
+      />
+    );
+  }
+
+  if (section === "recommendations") {
+    return (
+      <StudentRecommendations
+        recommendations={
+          recommendations
+        }
+      />
+    );
+  }
+
+  if (section === "fees") {
+    return (
+      <StudentFees
+        ledger={ledger}
+        payments={payments}
+      />
+    );
+  }
+
+  if (section === "notifications") {
+    return (
+      <StudentNotifications
+        notifications={
+          notifications
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {error && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-[#F0D8D5] bg-[#FFF8F7] px-4 py-3 text-sm text-[#7D312C]">
+          <span>{error}</span>
+
+          <button
+            type="button"
+            onClick={loadWorkspace}
+            className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-[#7D312C] shadow-sm"
+          >
+            Retry
+          </button>
+        </div>
       )}
+
+      <div className="flex items-center justify-between">
+        <div />
+
+        <button
+          type="button"
+          onClick={loadWorkspace}
+          className="inline-flex items-center gap-2 rounded-xl border border-[#E1E6E1] bg-white px-3.5 py-2 text-xs font-semibold text-[#52635B] shadow-sm transition hover:bg-[#F7F9F6]"
+        >
+          <RefreshCw size={15} />
+          Refresh workspace
+        </button>
+      </div>
+
+      <StudentOverview
+        student={student}
+        competencies={competencies}
+        recommendations={
+          recommendations
+        }
+        ledger={ledger}
+        payments={payments}
+        notifications={
+          notifications
+        }
+        adaptiveProfile={
+          adaptiveProfile
+        }
+      />
     </div>
   );
 }
