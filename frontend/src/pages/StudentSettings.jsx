@@ -1,21 +1,20 @@
-import {
-  useEffect,
-  useState,
-} from "react";
-
+import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
   Check,
+  ChevronRight,
   Eye,
   EyeOff,
   KeyRound,
   LogOut,
   Moon,
+  Palette,
   Save,
   ShieldCheck,
-  User,
+  Sparkles,
+  Sun,
   UserRound,
-  Zap,
+  X,
 } from "lucide-react";
 
 import api from "../api";
@@ -25,1012 +24,980 @@ import {
   saveStudentSettings,
 } from "../theme.js";
 
-
-const DEFAULT_PREFERENCES = {
-  darkMode: false,
-  compactMode: false,
-  reduceAnimations: false,
-  showNotifications: true,
+const INITIAL_FORM = {
+  username: "",
+  first_name: "",
+  last_name: "",
+  email: "",
 };
 
-
-function getErrorMessage(
-  error,
-  fallback
-) {
-  const data = error?.response?.data;
-
-  if (!data) {
-    return (
-      error?.message ||
-      fallback
-    );
-  }
-
-  if (typeof data === "string") {
-    return data;
-  }
-
-  if (data.detail) {
-    return data.detail;
-  }
-
-  const messages = [];
-
-  Object.entries(data).forEach(
-    ([field, value]) => {
-      const values = Array.isArray(value)
-        ? value
-        : [value];
-
-      values.forEach((message) => {
-        if (
-          typeof message === "string"
-        ) {
-          messages.push(
-            field ===
-            "non_field_errors"
-              ? message
-              : `${field.replaceAll(
-                  "_",
-                  " "
-                )}: ${message}`
-          );
-        }
-      });
-    }
-  );
-
-  return messages.length
-    ? messages.join(" ")
-    : fallback;
-}
-
-
-function getInitials(user) {
-  const first =
-    user?.first_name?.trim() || "";
-
-  const last =
-    user?.last_name?.trim() || "";
-
-  if (first || last) {
-    return `${first.charAt(
-      0
-    )}${last.charAt(0)}`.toUpperCase();
-  }
-
-  return (
-    user?.username
-      ?.slice(0, 2)
-      .toUpperCase() || "ST"
-  );
-}
-
+const INITIAL_PASSWORDS = {
+  current_password: "",
+  new_password: "",
+  confirm_password: "",
+};
 
 function StudentSettings() {
-  const {
-    user,
-    logout,
-  } = useAuth();
+  const { user, logout } = useAuth();
 
-  const [
-    username,
-    setUsername,
-  ] = useState(
-    user?.username || ""
+  const [form, setForm] = useState(INITIAL_FORM);
+  const [passwords, setPasswords] = useState(
+    INITIAL_PASSWORDS
   );
 
-  const [
-    currentPassword,
-    setCurrentPassword,
-  ] = useState("");
+  const [preferences, setPreferences] = useState(
+    getStudentSettings()
+  );
 
-  const [
-    newPassword,
-    setNewPassword,
-  ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [savingProfile, setSavingProfile] =
+    useState(false);
+  const [savingPassword, setSavingPassword] =
+    useState(false);
 
-  const [
-    confirmPassword,
-    setConfirmPassword,
-  ] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const [
-    showCurrentPassword,
-    setShowCurrentPassword,
-  ] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] =
+    useState(false);
+  const [showNewPassword, setShowNewPassword] =
+    useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
 
-  const [
-    showNewPassword,
-    setShowNewPassword,
-  ] = useState(false);
-
-  const [
-    showConfirmPassword,
-    setShowConfirmPassword,
-  ] = useState(false);
-
-  const [
-    preferences,
-    setPreferences,
-  ] = useState({
-    ...DEFAULT_PREFERENCES,
-    ...getStudentSettings(),
-  });
-
-  const [
-    savingAccount,
-    setSavingAccount,
-  ] = useState(false);
-
-  const [
-    savingPreferences,
-    setSavingPreferences,
-  ] = useState(false);
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const [
-    success,
-    setSuccess,
-  ] = useState("");
+  const [activeSection, setActiveSection] =
+    useState("profile");
 
   useEffect(() => {
-    setUsername(
-      user?.username || ""
-    );
-  }, [user]);
+    let mounted = true;
 
-  useEffect(() => {
-    const handleSettingsChange = (
-      event
-    ) => {
-      if (event.detail) {
-        setPreferences({
-          ...DEFAULT_PREFERENCES,
-          ...event.detail,
+    async function loadSettings() {
+      try {
+        const response = await api.get(
+          "/users/me/settings/"
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        setForm({
+          username: response.data.username || "",
+          first_name:
+            response.data.first_name || "",
+          last_name:
+            response.data.last_name || "",
+          email: response.data.email || "",
         });
-      }
-    };
+      } catch (requestError) {
+        if (!mounted) {
+          return;
+        }
 
-    window.addEventListener(
-      "darasa-settings-changed",
-      handleSettingsChange
-    );
+        setError(
+          requestError.response?.data?.detail ||
+            "Unable to load your account settings."
+        );
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadSettings();
 
     return () => {
-      window.removeEventListener(
-        "darasa-settings-changed",
-        handleSettingsChange
-      );
+      mounted = false;
     };
   }, []);
 
-  function clearMessages() {
+  const displayName = useMemo(() => {
+    const fullName = [
+      form.first_name,
+      form.last_name,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return fullName || form.username || "Student";
+  }, [
+    form.first_name,
+    form.last_name,
+    form.username,
+  ]);
+
+  const initials = useMemo(() => {
+    const parts = displayName
+      .split(" ")
+      .filter(Boolean);
+
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+
+    return (
+      parts[0][0] +
+      parts[parts.length - 1][0]
+    ).toUpperCase();
+  }, [displayName]);
+
+  const updateForm = (field, value) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+
+    setMessage("");
     setError("");
-    setSuccess("");
-  }
+  };
 
-  function updatePreference(
-    field,
-    value
-  ) {
-    clearMessages();
+  const updatePassword = (field, value) => {
+    setPasswords((current) => ({
+      ...current,
+      [field]: value,
+    }));
 
-    setPreferences(
-      (current) => ({
-        ...current,
-        [field]: value,
-      })
-    );
-  }
+    setMessage("");
+    setError("");
+  };
 
-  async function handleAccountSubmit(
-    event
-  ) {
+  const updatePreference = (field, value) => {
+    const updated = {
+      ...preferences,
+      [field]: value,
+    };
+
+    setPreferences(updated);
+    saveStudentSettings(updated);
+  };
+
+  const saveProfile = async (event) => {
     event.preventDefault();
 
-    clearMessages();
+    setSavingProfile(true);
+    setMessage("");
+    setError("");
 
-    const trimmedUsername =
-      username.trim();
-
-    if (!trimmedUsername) {
-      setError(
-        "Username cannot be empty."
+    try {
+      const response = await api.post(
+        "/users/me/settings/",
+        {
+          username: form.username.trim(),
+          first_name: form.first_name.trim(),
+          last_name: form.last_name.trim(),
+          email: form.email.trim(),
+        }
       );
+
+      setForm((current) => ({
+        ...current,
+        username:
+          response.data.username ||
+          current.username,
+        first_name:
+          response.data.first_name ||
+          current.first_name,
+        last_name:
+          response.data.last_name ||
+          current.last_name,
+        email:
+          response.data.email ??
+          current.email,
+      }));
+
+      setMessage(
+        "Your profile information has been saved."
+      );
+    } catch (requestError) {
+      const data = requestError.response?.data;
+
+      setError(
+        data?.username?.[0] ||
+          data?.email?.[0] ||
+          data?.detail ||
+          "Unable to save your profile."
+      );
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const changePassword = async (event) => {
+    event.preventDefault();
+
+    setSavingPassword(true);
+    setMessage("");
+    setError("");
+
+    if (!passwords.current_password) {
+      setError(
+        "Enter your current password first."
+      );
+      setSavingPassword(false);
       return;
     }
 
-    const changingPassword =
-      Boolean(newPassword);
+    if (!passwords.new_password) {
+      setError("Enter your new password.");
+      setSavingPassword(false);
+      return;
+    }
 
-    if (
-      changingPassword &&
-      !currentPassword
-    ) {
+    if (passwords.new_password.length < 8) {
       setError(
-        "Enter your current password to change your password."
+        "Your new password must contain at least 8 characters."
       );
+      setSavingPassword(false);
       return;
     }
 
     if (
-      changingPassword &&
-      newPassword !== confirmPassword
+      passwords.new_password !==
+      passwords.confirm_password
     ) {
       setError(
         "The new passwords do not match."
       );
+      setSavingPassword(false);
       return;
     }
-
-    if (
-      changingPassword &&
-      newPassword.length < 8
-    ) {
-      setError(
-        "Your new password must contain at least 8 characters."
-      );
-      return;
-    }
-
-    const usernameChanged =
-      trimmedUsername !==
-      (user?.username || "");
-
-    if (
-      !usernameChanged &&
-      !changingPassword
-    ) {
-      setError(
-        "There are no account changes to save."
-      );
-      return;
-    }
-
-    const payload = {};
-
-    if (usernameChanged) {
-      payload.username =
-        trimmedUsername;
-    }
-
-    if (changingPassword) {
-      payload.current_password =
-        currentPassword;
-
-      payload.new_password =
-        newPassword;
-    }
-
-    setSavingAccount(true);
 
     try {
-      const response =
-        await api.post(
-          "/users/me/settings/",
-          payload
-        );
-
-      const updatedUser =
-        response.data;
-
-      setUsername(
-        updatedUser?.username ||
-          trimmedUsername
+      const response = await api.post(
+        "/users/me/settings/",
+        {
+          current_password:
+            passwords.current_password,
+          new_password:
+            passwords.new_password,
+          confirm_password:
+            passwords.confirm_password,
+        }
       );
 
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
+      setPasswords(INITIAL_PASSWORDS);
 
-      setSuccess(
-        changingPassword
-          ? "Your account and password were updated successfully."
-          : "Your username was updated successfully."
+      setMessage(
+        response.data?.detail ||
+          "Your password has been changed successfully."
       );
     } catch (requestError) {
+      const data = requestError.response?.data;
+
       setError(
-        getErrorMessage(
-          requestError,
-          "Unable to update your account settings."
-        )
+        data?.current_password?.[0] ||
+          data?.new_password?.[0] ||
+          data?.confirm_password?.[0] ||
+          data?.detail ||
+          "Unable to change your password."
       );
     } finally {
-      setSavingAccount(false);
+      setSavingPassword(false);
     }
-  }
+  };
 
-  function savePreferences() {
-    clearMessages();
-
-    setSavingPreferences(true);
-
-    try {
-      saveStudentSettings(
-        preferences
-      );
-
-      setSuccess(
-        "Your preferences were saved."
-      );
-    } finally {
-      setSavingPreferences(false);
-    }
-  }
-
-  function handleSignOut() {
+  const handleLogout = () => {
     logout();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <div className="flex items-center gap-3 text-sm text-slate-500">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-700" />
+          Loading your settings...
+        </div>
+      </div>
+    );
   }
 
   return (
-    <section
-      className={[
-        "mx-auto w-full max-w-5xl space-y-6",
-        preferences.compactMode
-          ? "student-settings-compact"
-          : "",
-      ].join(" ")}
-    >
-      {/* HEADER */}
+    <div className="student-settings-compact min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl">
 
-      <div>
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B5D43] dark:text-emerald-400">
-          Account
-        </p>
+        {/* Header */}
+        <div className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-[#064e3b] via-[#087f5b] to-[#0f766e] p-6 text-white shadow-lg sm:p-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-emerald-100">
+                <Sparkles size={16} />
+                Student account
+              </div>
 
-        <h1 className="text-3xl font-bold tracking-tight text-[#17382E] dark:text-white sm:text-4xl">
-          Settings
-        </h1>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                Settings
+              </h1>
 
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#70807A] dark:text-slate-400">
-          Manage your account, security and
-          student workspace preferences.
-        </p>
-      </div>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-emerald-50/90 sm:text-base">
+                Manage your profile, password and
+                learning experience preferences.
+              </p>
+            </div>
 
-      {/* MESSAGES */}
+            <div className="flex items-center gap-4 rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-lg font-bold text-emerald-800 shadow-sm">
+                {initials}
+              </div>
 
-      {error && (
-        <div className="rounded-xl border border-[#F1C8C3] bg-[#FFF4F2] px-4 py-3 text-sm text-[#A33A32] dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          {error}
-        </div>
-      )}
+              <div className="min-w-0">
+                <p className="truncate font-semibold">
+                  {displayName}
+                </p>
 
-      {success && (
-        <div className="flex items-center gap-2 rounded-xl border border-[#CFE4D8] bg-[#F0F8F3] px-4 py-3 text-sm text-[#0B5D43] dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
-          <Check size={17} />
-          {success}
-        </div>
-      )}
-
-      {/* PROFILE */}
-
-      <div className="rounded-2xl border border-[#E4E5DE] bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#EAF3EE] text-lg font-bold text-[#0B5D43] dark:bg-emerald-950 dark:text-emerald-300">
-            {getInitials(user)}
+                <p className="truncate text-sm text-emerald-100">
+                  @{form.username}
+                </p>
+              </div>
+            </div>
           </div>
+        </div>
 
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#87948E] dark:text-slate-500">
-              Student account
-            </p>
+        {/* Alerts */}
+        {(message || error) && (
+          <div
+            className={`mb-6 flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${
+              error
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800"
+            }`}
+          >
+            {error ? (
+              <X size={18} className="mt-0.5 shrink-0" />
+            ) : (
+              <Check
+                size={18}
+                className="mt-0.5 shrink-0"
+              />
+            )}
 
-            <h2 className="mt-1 truncate text-xl font-bold text-[#17382E] dark:text-white">
-              {user?.first_name ||
-              user?.last_name
-                ? `${user?.first_name || ""} ${
-                    user?.last_name || ""
-                  }`.trim()
-                : user?.username ||
-                  "Student"}
-            </h2>
+            <p>{error || message}</p>
+          </div>
+        )}
 
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="rounded-lg bg-[#EAF3EE] px-2.5 py-1 text-xs font-semibold text-[#0B5D43] dark:bg-emerald-950 dark:text-emerald-300">
-                Student
+        <div className="grid gap-6 lg:grid-cols-[230px_1fr]">
+
+          {/* Navigation */}
+          <aside className="h-fit rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+            <SettingsNavItem
+              active={activeSection === "profile"}
+              icon={UserRound}
+              label="Profile"
+              description="Personal details"
+              onClick={() =>
+                setActiveSection("profile")
+              }
+            />
+
+            <SettingsNavItem
+              active={activeSection === "security"}
+              icon={KeyRound}
+              label="Security"
+              description="Password & access"
+              onClick={() =>
+                setActiveSection("security")
+              }
+            />
+
+            <SettingsNavItem
+              active={activeSection === "appearance"}
+              icon={Palette}
+              label="Appearance"
+              description="Theme & display"
+              onClick={() =>
+                setActiveSection("appearance")
+              }
+            />
+
+            <SettingsNavItem
+              active={activeSection === "notifications"}
+              icon={Bell}
+              label="Notifications"
+              description="Stay informed"
+              onClick={() =>
+                setActiveSection("notifications")
+              }
+            />
+
+            <div className="my-3 border-t border-slate-100" />
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-red-50"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-red-600">
+                <LogOut size={17} />
               </span>
 
-              {user?.school?.name && (
-                <span className="rounded-lg bg-[#F3F4EF] px-2.5 py-1 text-xs font-medium text-[#63716C] dark:bg-slate-800 dark:text-slate-400">
-                  {user.school.name}
+              <span>
+                <span className="block text-sm font-semibold text-red-700">
+                  Sign out
                 </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ACCOUNT SECURITY */}
+                <span className="block text-xs text-red-400">
+                  End this session
+                </span>
+              </span>
+            </button>
+          </aside>
 
-      <form
-        onSubmit={handleAccountSubmit}
-        className="rounded-2xl border border-[#E4E5DE] bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      >
-        <div className="border-b border-[#ECEDE8] p-5 dark:border-slate-800 sm:p-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43] dark:bg-emerald-950 dark:text-emerald-300">
-              <ShieldCheck size={20} />
-            </div>
+          {/* Content */}
+          <main className="space-y-6">
 
-            <div>
-              <h2 className="text-base font-bold text-[#17382E] dark:text-white">
-                Account & Security
-              </h2>
-
-              <p className="mt-1 text-sm text-[#82908C] dark:text-slate-400">
-                Update your username or password.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6 p-5 sm:p-6">
-          {/* USERNAME */}
-
-          <div>
-            <label
-              htmlFor="student-username"
-              className="mb-2 block text-xs font-semibold text-[#52635D] dark:text-slate-300"
-            >
-              Username
-            </label>
-
-            <div className="relative">
-              <User
-                size={17}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9AA49F] dark:text-slate-500"
-              />
-
-              <input
-                id="student-username"
-                type="text"
-                value={username}
-                onChange={(event) =>
-                  setUsername(
-                    event.target.value
-                  )
-                }
-                autoComplete="username"
-                className="w-full rounded-xl border border-[#DDE1DB] bg-white py-3 pl-10 pr-4 text-sm text-[#17382E] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-emerald-500"
-              />
-            </div>
-
-            <p className="mt-1.5 text-[11px] text-[#8A9691] dark:text-slate-500">
-              This is the username you use to sign
-              in.
-            </p>
-          </div>
-
-          {/* PASSWORD */}
-
-          <div className="border-t border-[#ECEDE8] pt-6 dark:border-slate-800">
-            <div className="mb-4 flex items-center gap-2">
-              <KeyRound
-                size={17}
-                className="text-[#0B5D43] dark:text-emerald-400"
-              />
-
-              <h3 className="text-sm font-bold text-[#17382E] dark:text-white">
-                Change password
-              </h3>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              {/* CURRENT */}
-
-              <div>
-                <label
-                  htmlFor="current-password"
-                  className="mb-2 block text-xs font-semibold text-[#52635D] dark:text-slate-300"
+            {/* Profile */}
+            {activeSection === "profile" && (
+              <SettingsCard
+                icon={UserRound}
+                title="Profile information"
+                description="Keep your account information up to date."
+              >
+                <form
+                  onSubmit={saveProfile}
+                  className="space-y-5"
                 >
-                  Current password
-                </label>
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <Field
+                      label="First name"
+                      value={form.first_name}
+                      onChange={(value) =>
+                        updateForm(
+                          "first_name",
+                          value
+                        )
+                      }
+                    />
 
-                <div className="relative">
-                  <input
-                    id="current-password"
-                    type={
-                      showCurrentPassword
-                        ? "text"
-                        : "password"
-                    }
-                    value={currentPassword}
-                    onChange={(event) =>
-                      setCurrentPassword(
-                        event.target.value
+                    <Field
+                      label="Last name"
+                      value={form.last_name}
+                      onChange={(value) =>
+                        updateForm(
+                          "last_name",
+                          value
+                        )
+                      }
+                    />
+                  </div>
+
+                  <Field
+                    label="Username"
+                    value={form.username}
+                    onChange={(value) =>
+                      updateForm(
+                        "username",
+                        value
                       )
                     }
-                    autoComplete="current-password"
-                    className="w-full rounded-xl border border-[#DDE1DB] bg-white py-3 pl-3.5 pr-11 text-sm text-[#17382E] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                    prefix="@"
                   />
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowCurrentPassword(
-                        (value) => !value
+                  <Field
+                    label="Email address"
+                    type="email"
+                    value={form.email}
+                    onChange={(value) =>
+                      updateForm(
+                        "email",
+                        value
                       )
                     }
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[#89958F] hover:bg-[#F3F4EF] dark:text-slate-500 dark:hover:bg-slate-800"
-                    aria-label={
-                      showCurrentPassword
-                        ? "Hide current password"
-                        : "Show current password"
-                    }
-                  >
-                    {showCurrentPassword ? (
-                      <EyeOff size={17} />
-                    ) : (
-                      <Eye size={17} />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* NEW */}
-
-              <div>
-                <label
-                  htmlFor="new-password"
-                  className="mb-2 block text-xs font-semibold text-[#52635D] dark:text-slate-300"
-                >
-                  New password
-                </label>
-
-                <div className="relative">
-                  <input
-                    id="new-password"
-                    type={
-                      showNewPassword
-                        ? "text"
-                        : "password"
-                    }
-                    value={newPassword}
-                    onChange={(event) =>
-                      setNewPassword(
-                        event.target.value
-                      )
-                    }
-                    autoComplete="new-password"
-                    minLength={8}
-                    className="w-full rounded-xl border border-[#DDE1DB] bg-white py-3 pl-3.5 pr-11 text-sm text-[#17382E] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   />
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowNewPassword(
-                        (value) => !value
-                      )
-                    }
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[#89958F] hover:bg-[#F3F4EF] dark:text-slate-500 dark:hover:bg-slate-800"
-                    aria-label={
-                      showNewPassword
-                        ? "Hide new password"
-                        : "Show new password"
-                    }
-                  >
-                    {showNewPassword ? (
-                      <EyeOff size={17} />
-                    ) : (
-                      <Eye size={17} />
-                    )}
-                  </button>
-                </div>
-              </div>
+                  <div className="flex justify-end border-t border-slate-100 pt-5">
+                    <button
+                      type="submit"
+                      disabled={savingProfile}
+                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Save size={17} />
 
-              {/* CONFIRM */}
+                      {savingProfile
+                        ? "Saving..."
+                        : "Save profile"}
+                    </button>
+                  </div>
+                </form>
+              </SettingsCard>
+            )}
 
-              <div>
-                <label
-                  htmlFor="confirm-password"
-                  className="mb-2 block text-xs font-semibold text-[#52635D] dark:text-slate-300"
+            {/* Security */}
+            {activeSection === "security" && (
+              <>
+                <SettingsCard
+                  icon={ShieldCheck}
+                  title="Account security"
+                  description="Change your password securely."
                 >
-                  Confirm password
-                </label>
+                  <div className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                    <div className="flex gap-3">
+                      <ShieldCheck
+                        size={20}
+                        className="mt-0.5 shrink-0 text-emerald-700"
+                      />
 
-                <div className="relative">
-                  <input
-                    id="confirm-password"
-                    type={
-                      showConfirmPassword
-                        ? "text"
-                        : "password"
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-900">
+                          Your password is protected
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-emerald-700">
+                          Your new password is hashed by
+                          Django before it is stored in
+                          the database.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <form
+                    onSubmit={changePassword}
+                    className="space-y-5"
+                  >
+                    <PasswordField
+                      label="Current password"
+                      value={
+                        passwords.current_password
+                      }
+                      visible={
+                        showCurrentPassword
+                      }
+                      onToggle={() =>
+                        setShowCurrentPassword(
+                          (value) => !value
+                        )
+                      }
+                      onChange={(value) =>
+                        updatePassword(
+                          "current_password",
+                          value
+                        )
+                      }
+                    />
+
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <PasswordField
+                        label="New password"
+                        value={
+                          passwords.new_password
+                        }
+                        visible={
+                          showNewPassword
+                        }
+                        onToggle={() =>
+                          setShowNewPassword(
+                            (value) => !value
+                          )
+                        }
+                        onChange={(value) =>
+                          updatePassword(
+                            "new_password",
+                            value
+                          )
+                        }
+                      />
+
+                      <PasswordField
+                        label="Confirm new password"
+                        value={
+                          passwords.confirm_password
+                        }
+                        visible={
+                          showConfirmPassword
+                        }
+                        onToggle={() =>
+                          setShowConfirmPassword(
+                            (value) => !value
+                          )
+                        }
+                        onChange={(value) =>
+                          updatePassword(
+                            "confirm_password",
+                            value
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className="rounded-2xl bg-slate-50 p-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Password requirements
+                      </p>
+
+                      <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+                        <PasswordRequirement
+                          valid={
+                            passwords.new_password
+                              .length >= 8
+                          }
+                          text="At least 8 characters"
+                        />
+
+                        <PasswordRequirement
+                          valid={
+                            passwords.new_password &&
+                            passwords.confirm_password &&
+                            passwords.new_password ===
+                              passwords.confirm_password
+                          }
+                          text="Passwords match"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end border-t border-slate-100 pt-5">
+                      <button
+                        type="submit"
+                        disabled={savingPassword}
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <KeyRound size={17} />
+
+                        {savingPassword
+                          ? "Updating..."
+                          : "Update password"}
+                      </button>
+                    </div>
+                  </form>
+                </SettingsCard>
+              </>
+            )}
+
+            {/* Appearance */}
+            {activeSection === "appearance" && (
+              <SettingsCard
+                icon={Palette}
+                title="Appearance"
+                description="Personalize how Darasa-AI looks and feels."
+              >
+                <div className="space-y-3">
+                  <PreferenceRow
+                    icon={
+                      preferences.darkMode
+                        ? Moon
+                        : Sun
                     }
-                    value={confirmPassword}
-                    onChange={(event) =>
-                      setConfirmPassword(
-                        event.target.value
+                    title="Dark mode"
+                    description="Use a darker interface for comfortable viewing."
+                    enabled={
+                      preferences.darkMode
+                    }
+                    onToggle={() =>
+                      updatePreference(
+                        "darkMode",
+                        !preferences.darkMode
                       )
                     }
-                    autoComplete="new-password"
-                    className="w-full rounded-xl border border-[#DDE1DB] bg-white py-3 pl-3.5 pr-11 text-sm text-[#17382E] outline-none transition focus:border-[#0B5D43] focus:ring-4 focus:ring-[#0B5D43]/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   />
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowConfirmPassword(
-                        (value) => !value
+                  <PreferenceRow
+                    icon={Sparkles}
+                    title="Compact mode"
+                    description="Use tighter spacing to see more information."
+                    enabled={
+                      preferences.compactMode
+                    }
+                    onToggle={() =>
+                      updatePreference(
+                        "compactMode",
+                        !preferences.compactMode
                       )
                     }
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[#89958F] hover:bg-[#F3F4EF] dark:text-slate-500 dark:hover:bg-slate-800"
-                    aria-label={
-                      showConfirmPassword
-                        ? "Hide confirmation password"
-                        : "Show confirmation password"
+                  />
+
+                  <PreferenceRow
+                    icon={ChevronRight}
+                    title="Reduce animations"
+                    description="Minimize interface motion and transitions."
+                    enabled={
+                      preferences.reduceAnimations
                     }
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff size={17} />
-                    ) : (
-                      <Eye size={17} />
-                    )}
-                  </button>
+                    onToggle={() =>
+                      updatePreference(
+                        "reduceAnimations",
+                        !preferences.reduceAnimations
+                      )
+                    }
+                  />
+                </div>
+              </SettingsCard>
+            )}
+
+            {/* Notifications */}
+            {activeSection ===
+              "notifications" && (
+              <SettingsCard
+                icon={Bell}
+                title="Notifications"
+                description="Choose whether learning notifications appear in your portal."
+              >
+                <PreferenceRow
+                  icon={Bell}
+                  title="Learning notifications"
+                  description="Show important assessment, fee and school notifications."
+                  enabled={
+                    preferences.showNotifications
+                  }
+                  onToggle={() =>
+                    updatePreference(
+                      "showNotifications",
+                      !preferences.showNotifications
+                    )
+                  }
+                />
+              </SettingsCard>
+            )}
+
+            {/* Account information */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <UserRound size={20} />
+                </div>
+
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-slate-900">
+                    Account
+                  </h3>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    {user?.role || "STUDENT"} account
+                  </p>
+
+                  {user?.school_name && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      {user.school_name}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
-
-            <p className="mt-3 text-[11px] text-[#8A9691] dark:text-slate-500">
-              Passwords must be at least 8 characters
-              and should not be easy to guess.
-            </p>
-          </div>
-
-          <div className="flex justify-end border-t border-[#ECEDE8] pt-5 dark:border-slate-800">
-            <button
-              type="submit"
-              disabled={savingAccount}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#084936] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-            >
-              {savingAccount ? (
-                "Saving..."
-              ) : (
-                <>
-                  <Save size={17} />
-                  Save account changes
-                </>
-              )}
-            </button>
-          </div>
+          </main>
         </div>
-      </form>
+      </div>
+    </div>
+  );
+}
 
-      {/* APPEARANCE */}
-
-      <div className="rounded-2xl border border-[#E4E5DE] bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="border-b border-[#ECEDE8] p-5 dark:border-slate-800 sm:p-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F0F2F5] text-[#52635D] dark:bg-slate-800 dark:text-slate-300">
-              <Moon size={20} />
-            </div>
-
-            <div>
-              <h2 className="text-base font-bold text-[#17382E] dark:text-white">
-                Appearance
-              </h2>
-
-              <p className="mt-1 text-sm text-[#82908C] dark:text-slate-400">
-                Personalise how your student workspace
-                looks and behaves.
-              </p>
-            </div>
-          </div>
+function SettingsCard({
+  icon: Icon,
+  title,
+  description,
+  children,
+}) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+      <div className="mb-6 flex items-start gap-4 border-b border-slate-100 pb-5">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+          <Icon size={20} />
         </div>
 
-        <div className="divide-y divide-[#ECEDE8] dark:divide-slate-800">
-          {/* DARK MODE */}
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">
+            {title}
+          </h2>
 
-          <div className="flex items-center justify-between gap-4 p-5 sm:p-6">
-            <div className="flex items-start gap-3">
-              <Moon
-                size={18}
-                className="mt-0.5 text-[#6D7B75] dark:text-slate-400"
-              />
-
-              <div>
-                <p className="text-sm font-semibold text-[#405650] dark:text-slate-200">
-                  Dark mode
-                </p>
-
-                <p className="mt-1 text-xs leading-5 text-[#82908C] dark:text-slate-500">
-                  Use a darker interface for comfortable
-                  viewing at night.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                updatePreference(
-                  "darkMode",
-                  !preferences.darkMode
-                )
-              }
-              className={[
-                "relative h-6 w-11 shrink-0 rounded-full transition",
-                preferences.darkMode
-                  ? "bg-[#0B5D43]"
-                  : "bg-[#CBD2CE]",
-              ].join(" ")}
-              aria-pressed={
-                preferences.darkMode
-              }
-              aria-label="Toggle dark mode"
-            >
-              <span
-                className={[
-                  "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition",
-                  preferences.darkMode
-                    ? "left-6"
-                    : "left-1",
-                ].join(" ")}
-              />
-            </button>
-          </div>
-
-          {/* COMPACT */}
-
-          <div className="flex items-center justify-between gap-4 p-5 sm:p-6">
-            <div className="flex items-start gap-3">
-              <Zap
-                size={18}
-                className="mt-0.5 text-[#6D7B75] dark:text-slate-400"
-              />
-
-              <div>
-                <p className="text-sm font-semibold text-[#405650] dark:text-slate-200">
-                  Compact workspace
-                </p>
-
-                <p className="mt-1 text-xs leading-5 text-[#82908C] dark:text-slate-500">
-                  Reduce spacing to fit more information
-                  on screen.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                updatePreference(
-                  "compactMode",
-                  !preferences.compactMode
-                )
-              }
-              className={[
-                "relative h-6 w-11 shrink-0 rounded-full transition",
-                preferences.compactMode
-                  ? "bg-[#0B5D43]"
-                  : "bg-[#CBD2CE]",
-              ].join(" ")}
-              aria-pressed={
-                preferences.compactMode
-              }
-              aria-label="Toggle compact workspace"
-            >
-              <span
-                className={[
-                  "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition",
-                  preferences.compactMode
-                    ? "left-6"
-                    : "left-1",
-                ].join(" ")}
-              />
-            </button>
-          </div>
-
-          {/* REDUCE MOTION */}
-
-          <div className="flex items-center justify-between gap-4 p-5 sm:p-6">
-            <div className="flex items-start gap-3">
-              <Zap
-                size={18}
-                className="mt-0.5 text-[#6D7B75] dark:text-slate-400"
-              />
-
-              <div>
-                <p className="text-sm font-semibold text-[#405650] dark:text-slate-200">
-                  Reduce animations
-                </p>
-
-                <p className="mt-1 text-xs leading-5 text-[#82908C] dark:text-slate-500">
-                  Minimise interface transitions and motion.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                updatePreference(
-                  "reduceAnimations",
-                  !preferences.reduceAnimations
-                )
-              }
-              className={[
-                "relative h-6 w-11 shrink-0 rounded-full transition",
-                preferences.reduceAnimations
-                  ? "bg-[#0B5D43]"
-                  : "bg-[#CBD2CE]",
-              ].join(" ")}
-              aria-pressed={
-                preferences.reduceAnimations
-              }
-              aria-label="Toggle reduced animations"
-            >
-              <span
-                className={[
-                  "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition",
-                  preferences.reduceAnimations
-                    ? "left-6"
-                    : "left-1",
-                ].join(" ")}
-              />
-            </button>
-          </div>
-
-          <div className="flex justify-end p-5 sm:p-6">
-            <button
-              type="button"
-              onClick={savePreferences}
-              disabled={savingPreferences}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#17382E] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0B5D43] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-700 dark:hover:bg-emerald-600"
-            >
-              {savingPreferences ? (
-                "Saving..."
-              ) : (
-                <>
-                  <Save size={17} />
-                  Save preferences
-                </>
-              )}
-            </button>
-          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            {description}
+          </p>
         </div>
       </div>
 
-      {/* NOTIFICATIONS */}
-
-      <div className="rounded-2xl border border-[#E4E5DE] bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="border-b border-[#ECEDE8] p-5 dark:border-slate-800 sm:p-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFF7DF] text-[#9A7600] dark:bg-amber-950 dark:text-amber-300">
-              <Bell size={20} />
-            </div>
-
-            <div>
-              <h2 className="text-base font-bold text-[#17382E] dark:text-white">
-                Notifications
-              </h2>
-
-              <p className="mt-1 text-sm text-[#82908C] dark:text-slate-400">
-                Choose how notifications appear in your
-                workspace.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 p-5 sm:p-6">
-          <div className="flex items-start gap-3">
-            <Bell
-              size={18}
-              className="mt-0.5 text-[#6D7B75] dark:text-slate-400"
-            />
-
-            <div>
-              <p className="text-sm font-semibold text-[#405650] dark:text-slate-200">
-                Show notifications
-              </p>
-
-              <p className="mt-1 text-xs leading-5 text-[#82908C] dark:text-slate-500">
-                Keep notification indicators visible in
-                your student workspace.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              updatePreference(
-                "showNotifications",
-                !preferences.showNotifications
-              )
-            }
-            className={[
-              "relative h-6 w-11 shrink-0 rounded-full transition",
-              preferences.showNotifications
-                ? "bg-[#0B5D43]"
-                : "bg-[#CBD2CE]",
-            ].join(" ")}
-            aria-pressed={
-              preferences.showNotifications
-            }
-            aria-label="Toggle notifications"
-          >
-            <span
-              className={[
-                "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition",
-                preferences.showNotifications
-                  ? "left-6"
-                  : "left-1",
-              ].join(" ")}
-            />
-          </button>
-        </div>
-      </div>
-
-      {/* SECURITY STATUS */}
-
-      <div className="rounded-2xl border border-[#CFE4D8] bg-[#F0F8F3] p-5 dark:border-emerald-900 dark:bg-emerald-950/30 sm:p-6">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#0B5D43] dark:bg-emerald-950 dark:text-emerald-300">
-            <ShieldCheck size={20} />
-          </div>
-
-          <div>
-            <h2 className="text-sm font-bold text-[#17382E] dark:text-emerald-200">
-              Account security
-            </h2>
-
-            <p className="mt-1 text-xs leading-5 text-[#63766D] dark:text-slate-400">
-              Your password is protected by Django's
-              password hashing system. Changing your
-              password requires your current password.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* SIGN OUT */}
-
-      <div className="rounded-2xl border border-[#F0D8D4] bg-white p-5 shadow-sm dark:border-red-900 dark:bg-slate-900 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFF0EE] text-[#B33A31] dark:bg-red-950 dark:text-red-300">
-              <LogOut size={19} />
-            </div>
-
-            <div>
-              <h2 className="text-sm font-bold text-[#17382E] dark:text-white">
-                Sign out
-              </h2>
-
-              <p className="mt-1 text-xs leading-5 text-[#82908C] dark:text-slate-500">
-                Sign out of your Darasa-AI student
-                account on this device.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#E5C4BF] px-5 py-2.5 text-sm font-semibold text-[#A33A32] transition hover:bg-[#FFF4F2] dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
-          >
-            <LogOut size={17} />
-            Sign out
-          </button>
-        </div>
-      </div>
-
-      {/* FOOTER */}
-
-      <div className="flex items-center justify-center gap-2 pb-6 text-[11px] text-[#9BA5A1] dark:text-slate-600">
-        <UserRound size={13} />
-        Darasa-AI Student Workspace
-      </div>
+      {children}
     </section>
+  );
+}
+
+function SettingsNavItem({
+  active,
+  icon: Icon,
+  label,
+  description,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`mb-1 flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${
+        active
+          ? "bg-emerald-50 text-emerald-800"
+          : "text-slate-600 hover:bg-slate-50"
+      }`}
+    >
+      <span
+        className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+          active
+            ? "bg-emerald-700 text-white"
+            : "bg-slate-100 text-slate-500"
+        }`}
+      >
+        <Icon size={17} />
+      </span>
+
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold">
+          {label}
+        </span>
+
+        <span className="block truncate text-xs opacity-60">
+          {description}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  prefix,
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+      </span>
+
+      <div className="relative">
+        {prefix && (
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+            {prefix}
+          </span>
+        )}
+
+        <input
+          type={type}
+          value={value}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+          className={`h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10 ${
+            prefix ? "pl-8" : ""
+          }`}
+        />
+      </div>
+    </label>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  visible,
+  onToggle,
+  onChange,
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+      </span>
+
+      <div className="relative">
+        <KeyRound
+          size={17}
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+        />
+
+        <input
+          type={visible ? "text" : "password"}
+          value={value}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+          autoComplete="new-password"
+          className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-11 pr-12 text-sm text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10"
+        />
+
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-emerald-700"
+          aria-label={
+            visible
+              ? "Hide password"
+              : "Show password"
+          }
+        >
+          {visible ? (
+            <EyeOff size={17} />
+          ) : (
+            <Eye size={17} />
+          )}
+        </button>
+      </div>
+    </label>
+  );
+}
+
+function PasswordRequirement({
+  valid,
+  text,
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={`flex h-4 w-4 items-center justify-center rounded-full ${
+          valid
+            ? "bg-emerald-600 text-white"
+            : "bg-slate-200 text-slate-400"
+        }`}
+      >
+        <Check size={10} />
+      </span>
+
+      {text}
+    </div>
+  );
+}
+
+function PreferenceRow({
+  icon: Icon,
+  title,
+  description,
+  enabled,
+  onToggle,
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-700 shadow-sm">
+          <Icon size={18} />
+        </div>
+
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-900">
+            {title}
+          </p>
+
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            {description}
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={enabled}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+          enabled
+            ? "bg-emerald-600"
+            : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${
+            enabled
+              ? "left-6"
+              : "left-1"
+          }`}
+        />
+      </button>
+    </div>
   );
 }
 
