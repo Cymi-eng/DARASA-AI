@@ -1,25 +1,25 @@
-import { useState } from "react";
 import {
   BarChart3,
   Bell,
   BookOpenCheck,
   ChevronLeft,
   ChevronRight,
-  CreditCard,
   GraduationCap,
   LayoutDashboard,
   LogOut,
   Menu,
   School,
   Settings,
+  Wallet,
   Users,
   X,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 
-const adminNavigation = [
+const ADMIN_NAVIGATION = [
   {
     label: "Overview",
     path: "/dashboard",
@@ -53,129 +53,97 @@ const adminNavigation = [
   {
     label: "Finance",
     path: "/finance",
-    icon: CreditCard,
+    icon: Wallet,
+  },
+];
+
+const STUDENT_NAVIGATION = [
+  {
+    label: "Overview",
+    path: "/student-portal",
+    icon: LayoutDashboard,
+  },
+  {
+    label: "My Progress",
+    path: "/student-portal",
+    icon: GraduationCap,
+  },
+  {
+    label: "My Assessments",
+    path: "/student-portal",
+    icon: BookOpenCheck,
+  },
+  {
+    label: "Recommendations",
+    path: "/student-portal",
+    icon: BarChart3,
+  },
+  {
+    label: "Fees",
+    path: "/student-portal",
+    icon: Wallet,
   },
   {
     label: "Notifications",
-    path: "/notifications",
+    path: "/student-portal",
     icon: Bell,
   },
 ];
 
-const teacherNavigation = [
+const TEACHER_NAVIGATION = [
   {
-    label: "Teacher Workspace",
+    label: "Overview",
     path: "/teacher-portal",
     icon: LayoutDashboard,
   },
   {
-    label: "My Learners",
-    path: "/students",
-    icon: GraduationCap,
-  },
-  {
-    label: "My Classrooms",
+    label: "My Classes",
     path: "/classrooms",
     icon: School,
+  },
+  {
+    label: "My Students",
+    path: "/students",
+    icon: GraduationCap,
   },
   {
     label: "CBC Assessment",
     path: "/competencies",
     icon: BookOpenCheck,
   },
-  {
-    label: "Learner Analytics",
-    path: "/analytics",
-    icon: BarChart3,
-  },
-  {
-    label: "Notifications",
-    path: "/notifications",
-    icon: Bell,
-  },
 ];
 
-const bursarNavigation = [
+const BURSAR_NAVIGATION = [
   {
     label: "Finance",
     path: "/finance",
-    icon: CreditCard,
-  },
-  {
-    label: "Students",
-    path: "/students",
-    icon: GraduationCap,
-  },
-  {
-    label: "Notifications",
-    path: "/notifications",
-    icon: Bell,
+    icon: Wallet,
   },
 ];
 
 function getNavigationForRole(role) {
   switch (role) {
-    case "TEACHER":
-      return teacherNavigation;
-
-    case "BURSAR":
-      return bursarNavigation;
-
-    case "ADMIN":
-    case "PLATFORM_ADMIN":
-    default:
-      return adminNavigation;
-  }
-}
-
-function getPortalTitle(role) {
-  switch (role) {
-    case "TEACHER":
-      return "Teacher Workspace";
-
-    case "BURSAR":
-      return "Finance Workspace";
-
-    case "PLATFORM_ADMIN":
-      return "Platform Administration";
-
     case "STUDENT":
-      return "Student Workspace";
+      return STUDENT_NAVIGATION;
 
-    case "PARENT":
-      return "Parent Workspace";
-
-    case "ADMIN":
-    default:
-      return "School Administration";
-  }
-}
-
-function getPortalSubtitle(role) {
-  switch (role) {
     case "TEACHER":
-      return "Learners, classrooms and competency assessment";
+      return TEACHER_NAVIGATION;
 
     case "BURSAR":
-      return "School payments and financial records";
-
-    case "PLATFORM_ADMIN":
-      return "DARASA-AI platform management";
-
-    case "STUDENT":
-      return "Personal learning and competency progress";
-
-    case "PARENT":
-      return "Learner progress and school communication";
+      return BURSAR_NAVIGATION;
 
     case "ADMIN":
+    case "PLATFORM_ADMIN":
     default:
-      return "Darasa-AI Education Management Platform";
+      return ADMIN_NAVIGATION;
   }
 }
 
 function getRoleLabel(role) {
   switch (role) {
+    case "STUDENT":
+      return "Student";
+
     case "TEACHER":
       return "Teacher";
 
@@ -183,41 +151,75 @@ function getRoleLabel(role) {
       return "Bursar";
 
     case "PLATFORM_ADMIN":
-      return "Platform Administrator";
-
-    case "STUDENT":
-      return "Student";
-
-    case "PARENT":
-      return "Parent";
+      return "Platform Admin";
 
     case "ADMIN":
     default:
-      return "School Administrator";
+      return "Administrator";
+  }
+}
+
+function getRoleWorkspace(role) {
+  switch (role) {
+    case "STUDENT":
+      return "Student Workspace";
+
+    case "TEACHER":
+      return "Teacher Workspace";
+
+    case "BURSAR":
+      return "Finance Workspace";
+
+    case "PLATFORM_ADMIN":
+      return "Platform Workspace";
+
+    case "ADMIN":
+    default:
+      return "School Workspace";
   }
 }
 
 function getInitials(user) {
   if (!user) {
-    return "U";
+    return "DS";
   }
 
-  const firstName = user.first_name?.trim() || "";
-  const lastName = user.last_name?.trim() || "";
+  const firstName =
+    user.first_name ||
+    user.firstName ||
+    "";
 
-  if (firstName && lastName) {
-    return `${firstName[0]}${lastName[0]}`.toUpperCase();
+  const lastName =
+    user.last_name ||
+    user.lastName ||
+    "";
+
+  const fullName =
+    user.full_name ||
+    user.name ||
+    "";
+
+  if (firstName || lastName) {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`
+      .toUpperCase();
   }
 
-  if (firstName) {
-    return firstName[0].toUpperCase();
+  if (fullName) {
+    const parts = fullName.trim().split(/\s+/);
+
+    if (parts.length >= 2) {
+      return `${parts[0].charAt(0)}${parts[1].charAt(0)}`
+        .toUpperCase();
+    }
+
+    return parts[0].slice(0, 2).toUpperCase();
   }
 
   if (user.username) {
-    return user.username[0].toUpperCase();
+    return user.username.slice(0, 2).toUpperCase();
   }
 
-  return "U";
+  return "DS";
 }
 
 function getDisplayName(user) {
@@ -225,282 +227,417 @@ function getDisplayName(user) {
     return "User";
   }
 
-  const fullName = [
-    user.first_name,
-    user.last_name,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  if (user.full_name) {
+    return user.full_name;
+  }
 
-  return fullName || user.username || "User";
+  if (user.name) {
+    return user.name;
+  }
+
+  if (user.first_name || user.last_name) {
+    return `${user.first_name || ""} ${user.last_name || ""}`
+      .trim();
+  }
+
+  return user.username || "User";
+}
+
+function getSchoolName(user) {
+  if (!user) {
+    return "Darasa-AI";
+  }
+
+  if (user.school_name) {
+    return user.school_name;
+  }
+
+  if (user.school?.name) {
+    return user.school.name;
+  }
+
+  return "Darasa-AI";
+}
+
+function isActivePath(path, currentPath) {
+  if (path === "/student-portal") {
+    return currentPath === "/student-portal";
+  }
+
+  if (path === "/teacher-portal") {
+    return currentPath === "/teacher-portal";
+  }
+
+  return currentPath === path;
 }
 
 function AppShell({ children }) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const role = user?.role || "ADMIN";
-  const navigation = getNavigationForRole(role);
-  const portalTitle = getPortalTitle(role);
-  const portalSubtitle = getPortalSubtitle(role);
+
+  const navigation = useMemo(
+    () => getNavigationForRole(role),
+    [role],
+  );
+
   const roleLabel = getRoleLabel(role);
+  const workspaceLabel = getRoleWorkspace(role);
   const displayName = getDisplayName(user);
+  const schoolName = getSchoolName(user);
   const initials = getInitials(user);
 
-  return (
-    <div className="min-h-screen bg-[#F8F7F2]">
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
+    };
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", {
+      replace: true,
+    });
+  };
+
+  const handleMobileNavigation = (path) => {
+    setSidebarOpen(false);
+    navigate(path);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F5F7F3] text-[#17382E]">
       {/* Mobile overlay */}
-      {mobileMenuOpen && (
+      {sidebarOpen && (
         <button
           type="button"
           aria-label="Close navigation"
-          onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-[#03251B]/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
         />
       )}
 
       {/* Sidebar */}
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-[#E4E5DE] bg-[#FFFFFF] transition-all duration-200",
-          sidebarCollapsed ? "w-[76px]" : "w-64",
-          mobileMenuOpen
+          "fixed inset-y-0 left-0 z-50 flex flex-col",
+          "border-r border-[#E4E8E2]",
+          "bg-white",
+          "transition-all duration-300",
+          collapsed
+            ? "w-[76px]"
+            : "w-[264px]",
+          sidebarOpen
             ? "translate-x-0"
             : "-translate-x-full lg:translate-x-0",
         ].join(" ")}
       >
-
         {/* Brand */}
-        <div className="flex h-20 items-center border-b border-[#E9E8E1] px-5">
-          <div className="flex min-w-0 items-center gap-3">
+        <div
+          className={[
+            "flex h-[76px] items-center border-b border-[#E8EBE6]",
+            collapsed
+              ? "justify-center px-3"
+              : "justify-between px-5",
+          ].join(" ")}
+        >
+          <button
+            type="button"
+            onClick={() => navigate(
+              role === "STUDENT"
+                ? "/student-portal"
+                : role === "TEACHER"
+                  ? "/teacher-portal"
+                  : role === "BURSAR"
+                    ? "/finance"
+                    : "/dashboard"
+            )}
+            className={[
+              "flex items-center gap-3",
+              collapsed
+                ? "justify-center"
+                : "",
+            ].join(" ")}
+          >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0B5D43] text-white shadow-sm">
-              <GraduationCap size={23} />
+              <GraduationCap size={21} />
             </div>
 
-            {!sidebarCollapsed && (
-              <div className="min-w-0">
-                <p className="truncate text-lg font-bold tracking-tight text-[#0B4D39]">
+            {!collapsed && (
+              <div className="text-left">
+                <p className="text-[17px] font-extrabold tracking-tight text-[#17382E]">
                   Darasa-AI
                 </p>
 
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8A9691]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8A9691]">
                   Education OS
                 </p>
               </div>
             )}
-          </div>
+          </button>
 
           <button
             type="button"
-            onClick={() => setMobileMenuOpen(false)}
-            className="ml-auto rounded-lg p-2 text-[#7C8984] transition hover:bg-[#F3F4EF] hover:text-[#0B5D43] lg:hidden"
-            aria-label="Close navigation"
+            onClick={() => setSidebarOpen(false)}
+            className="rounded-lg p-2 text-[#788680] hover:bg-[#F3F5F1] hover:text-[#17382E] lg:hidden"
+            aria-label="Close sidebar"
           >
-            <X size={20} />
+            <X size={19} />
           </button>
         </div>
 
-        {/* Current role */}
-        {!sidebarCollapsed && (
-          <div className="border-b border-[#E9E8E1] px-4 py-4">
-            <div className="rounded-xl bg-[#EAF3EE] px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#789087]">
+        {/* Workspace identity */}
+        {!collapsed && (
+          <div className="border-b border-[#E8EBE6] px-5 py-4">
+            <div className="rounded-xl bg-[#F3F7F3] px-3.5 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A9691]">
                 Current workspace
               </p>
 
-              <p className="mt-1 text-sm font-semibold text-[#0B5D43]">
-                {roleLabel}
-              </p>
+              <div className="mt-2 flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#DCEBE3] text-[10px] font-extrabold text-[#0B5D43]">
+                  {initials}
+                </div>
+
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-[#26493D]">
+                    {roleLabel}
+                  </p>
+
+                  <p className="truncate text-[11px] text-[#82908A]">
+                    {workspaceLabel}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
-          {!sidebarCollapsed && (
-            <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#9AA49F]">
+        <div className="flex-1 overflow-y-auto px-3 py-5">
+          {!collapsed && (
+            <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-[#9AA59F]">
               Workspace
             </p>
           )}
 
-          {navigation.map((item) => {
-            const Icon = item.icon;
+          <nav className="space-y-1">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const active = isActivePath(
+                item.path,
+                location.pathname,
+              );
 
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={
-                  item.path === "/dashboard" ||
-                  item.path === "/teacher-portal"
-                }
-                onClick={() => setMobileMenuOpen(false)}
-                title={sidebarCollapsed ? item.label : undefined}
-                className={({ isActive }) =>
-                  [
-                    "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition",
-                    isActive
+              return (
+                <NavLink
+                  key={item.label}
+                  to={item.path}
+                  title={collapsed ? item.label : undefined}
+                  onClick={() => setSidebarOpen(false)}
+                  className={[
+                    "group flex items-center rounded-xl transition-all",
+                    collapsed
+                      ? "justify-center px-3 py-3"
+                      : "gap-3 px-3 py-2.5",
+                    active
                       ? "bg-[#EAF3EE] text-[#0B5D43]"
-                      : "text-[#5E6C67] hover:bg-[#F6F7F3] hover:text-[#0B5D43]",
-                    sidebarCollapsed ? "justify-center" : "",
-                  ].join(" ")
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <Icon
-                      size={19}
-                      className={
-                        isActive
-                          ? "text-[#0B5D43]"
-                          : "text-[#8A9691] group-hover:text-[#0B5D43]"
-                      }
-                    />
+                      : "text-[#66756E] hover:bg-[#F4F6F2] hover:text-[#17382E]",
+                  ].join(" ")}
+                >
+                  <Icon
+                    size={18}
+                    strokeWidth={active ? 2.4 : 2}
+                    className="shrink-0"
+                  />
 
-                    {!sidebarCollapsed && (
-                      <span>{item.label}</span>
-                    )}
+                  {!collapsed && (
+                    <span
+                      className={[
+                        "text-sm",
+                        active
+                          ? "font-bold"
+                          : "font-medium",
+                      ].join(" ")}
+                    >
+                      {item.label}
+                    </span>
+                  )}
 
-                    {isActive && !sidebarCollapsed && (
-                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#F1C54C]" />
-                    )}
-                  </>
-                )}
-              </NavLink>
-            );
-          })}
-        </nav>
+                  {active && !collapsed && (
+                    <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#0B5D43]" />
+                  )}
+                </NavLink>
+              );
+            })}
+          </nav>
+        </div>
 
-        {/* Bottom actions */}
-        <div className="border-t border-[#E9E8E1] p-3">
-          {!sidebarCollapsed && (
-            <NavLink
-              to="/settings"
-              onClick={() => setMobileMenuOpen(false)}
-              className={({ isActive }) =>
-                [
-                  "mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
-                  isActive
-                    ? "bg-[#F1F3EE] text-[#0B5D43]"
-                    : "text-[#5E6C67] hover:bg-[#F6F7F3] hover:text-[#0B5D43]",
-                ].join(" ")
-              }
-            >
-              <Settings size={19} className="text-[#8A9691]" />
-              Settings
-            </NavLink>
-          )}
+        {/* Bottom navigation */}
+        <div className="border-t border-[#E8EBE6] p-3">
+          <NavLink
+            to="/settings"
+            title={collapsed ? "Settings" : undefined}
+            onClick={() => setSidebarOpen(false)}
+            className={[
+              "flex items-center rounded-xl text-[#66756E] transition hover:bg-[#F4F6F2] hover:text-[#17382E]",
+              collapsed
+                ? "justify-center px-3 py-3"
+                : "gap-3 px-3 py-2.5",
+            ].join(" ")}
+          >
+            <Settings size={18} />
+
+            {!collapsed && (
+              <span className="text-sm font-medium">
+                Settings
+              </span>
+            )}
+          </NavLink>
 
           <button
             type="button"
-            onClick={logout}
-            title={sidebarCollapsed ? "Sign out" : undefined}
+            onClick={handleLogout}
+            title={collapsed ? "Sign out" : undefined}
             className={[
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[#A33A32] transition hover:bg-[#FFF3F1]",
-              sidebarCollapsed ? "justify-center" : "",
+              "mt-1 flex w-full items-center rounded-xl text-[#8A625F] transition hover:bg-[#FBF2F1] hover:text-[#8C4039]",
+              collapsed
+                ? "justify-center px-3 py-3"
+                : "gap-3 px-3 py-2.5",
             ].join(" ")}
           >
-            <LogOut size={19} />
+            <LogOut size={18} />
 
-            {!sidebarCollapsed && <span>Sign out</span>}
+            {!collapsed && (
+              <span className="text-sm font-medium">
+                Sign out
+              </span>
+            )}
+          </button>
+
+          {/* Collapse button */}
+          <button
+            type="button"
+            onClick={() => setCollapsed((value) => !value)}
+            className="mt-2 hidden w-full items-center justify-center rounded-xl border border-[#E5E9E4] py-2.5 text-[#7D8A84] transition hover:bg-[#F5F7F3] hover:text-[#17382E] lg:flex"
+            aria-label={
+              collapsed
+                ? "Expand sidebar"
+                : "Collapse sidebar"
+            }
+          >
+            {collapsed ? (
+              <ChevronRight size={17} />
+            ) : (
+              <>
+                <ChevronLeft size={17} />
+                <span className="ml-2 text-xs font-semibold">
+                  Collapse
+                </span>
+              </>
+            )}
           </button>
         </div>
-
-        {/* Collapse button */}
-        <button
-          type="button"
-          onClick={() =>
-            setSidebarCollapsed((value) => !value)
-          }
-          className="absolute -right-3 top-24 hidden h-7 w-7 items-center justify-center rounded-full border border-[#DDE1DB] bg-white text-[#71807A] shadow-sm transition hover:border-[#0B5D43] hover:text-[#0B5D43] lg:flex"
-          aria-label={
-            sidebarCollapsed
-              ? "Expand sidebar"
-              : "Collapse sidebar"
-          }
-        >
-          {sidebarCollapsed ? (
-            <ChevronRight size={15} />
-          ) : (
-            <ChevronLeft size={15} />
-          )}
-        </button>
       </aside>
 
-      {/* Main application */}
+      {/* Main area */}
       <div
         className={[
-          "min-h-screen transition-all duration-200",
-          sidebarCollapsed
+          "min-h-screen transition-all duration-300",
+          collapsed
             ? "lg:pl-[76px]"
-            : "lg:pl-64",
+            : "lg:pl-[264px]",
         ].join(" ")}
       >
-
         {/* Header */}
-        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-[#E4E5DE] bg-[#FFFFFF]/95 px-4 backdrop-blur sm:px-6">
-
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 flex h-[76px] items-center justify-between border-b border-[#E4E8E2] bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Mobile menu */}
             <button
               type="button"
-              onClick={() => setMobileMenuOpen(true)}
-              className="rounded-xl p-2 text-[#65736E] transition hover:bg-[#F1F3EE] hover:text-[#0B5D43] lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#E4E8E2] text-[#607068] hover:bg-[#F4F6F2] lg:hidden"
               aria-label="Open navigation"
             >
-              <Menu size={22} />
+              <Menu size={20} />
             </button>
 
-            <div>
-              <p className="text-sm font-semibold text-[#17382E]">
-                {portalTitle}
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-bold uppercase tracking-[0.14em] text-[#98A39E]">
+                {workspaceLabel}
               </p>
 
-              <p className="hidden text-xs text-[#8A9691] sm:block">
-                {portalSubtitle}
+              <p className="truncate text-sm font-semibold text-[#294A3F]">
+                {schoolName}
               </p>
             </div>
           </div>
 
-          {/* Header actions */}
-          <div className="flex items-center gap-3">
-
-            <NavLink
-              to="/notifications"
-              className="relative rounded-xl p-2.5 text-[#65736E] transition hover:bg-[#F1F3EE] hover:text-[#0B5D43]"
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Notifications */}
+            <button
+              type="button"
+              onClick={() => {
+                if (role === "STUDENT") {
+                  navigate("/student-portal");
+                }
+              }}
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-[#E4E8E2] text-[#64736C] transition hover:bg-[#F4F6F2] hover:text-[#17382E]"
               aria-label="Notifications"
             >
-              <Bell size={20} />
+              <Bell size={18} />
+            </button>
 
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#F1C54C] ring-2 ring-white" />
-            </NavLink>
+            {/* User */}
+            <div className="hidden items-center gap-2.5 sm:flex">
+              <div className="text-right">
+                <p className="max-w-[160px] truncate text-xs font-bold text-[#294A3F]">
+                  {displayName}
+                </p>
 
-            <div className="hidden h-8 w-px bg-[#E4E5DE] sm:block" />
+                <p className="text-[11px] text-[#8A9691]">
+                  {roleLabel}
+                </p>
+              </div>
 
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold text-[#405650]">
-                {displayName}
-              </p>
-
-              <p className="text-xs text-[#9AA49F]">
-                {user?.school_name || roleLabel}
-              </p>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0B5D43] text-xs font-extrabold text-white">
+                {initials}
+              </div>
             </div>
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EAF3EE] text-sm font-bold text-[#0B5D43] ring-2 ring-[#F1C54C]/30">
+            {/* Mobile avatar */}
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0B5D43] text-xs font-extrabold text-white sm:hidden">
               {initials}
             </div>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-[1600px]">
-            {children}
-          </div>
+        <main className="min-h-[calc(100vh-76px)] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
+          {children}
         </main>
       </div>
     </div>
