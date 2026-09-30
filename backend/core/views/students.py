@@ -40,6 +40,16 @@ class StudentViewSet(SchoolScopedViewSet):
             and user.profile.role == "STUDENT"
         )
 
+    def _is_teacher(self):
+        user = self.request.user
+
+        return (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "TEACHER"
+        )
+
     def get_queryset(self):
         school = self.get_school()
 
@@ -61,12 +71,9 @@ class StudentViewSet(SchoolScopedViewSet):
                 user=user
             )
 
-        elif (
-            user.is_authenticated
-            and not user.is_superuser
-            and hasattr(user, "profile")
-            and user.profile.role == "TEACHER"
-        ):
+        elif self._is_teacher():
+            # Teachers can only see students whose
+            # classroom is assigned to them.
             queryset = queryset.filter(
                 classroom__teachers__user=user
             ).distinct()
