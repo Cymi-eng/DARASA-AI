@@ -3,42 +3,53 @@ Django settings for config project.
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_list(name, default=""):
+    return [
+        item.strip()
+        for item in os.getenv(name, default).split(",")
+        if item.strip()
+    ]
 
 
 # =============================================================================
 # Core configuration
 # =============================================================================
 
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-dev-only-change-this",
+# Debug is OFF unless explicitly enabled (set DJANGO_DEBUG=True locally).
+DEBUG = env_bool("DJANGO_DEBUG", False)
+
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "").strip()
+
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "django-insecure-dev-only-change-this"
+    else:
+        raise RuntimeError(
+            "DJANGO_SECRET_KEY environment variable must be set "
+            "when DEBUG is off."
+        )
+
+ALLOWED_HOSTS = env_list(
+    "DJANGO_ALLOWED_HOSTS",
+    "127.0.0.1,localhost,darasa-ai.onrender.com",
 )
-
-DEBUG = os.getenv(
-    "DJANGO_DEBUG",
-    "True",
-).lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
-
-
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv(
-        "DJANGO_ALLOWED_HOSTS",
-        "127.0.0.1,localhost",
-    ).split(",")
-    if host.strip()
-]
 
 
 # =============================================================================
@@ -86,7 +97,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-
 ROOT_URLCONF = "config.urls"
 
 
@@ -109,7 +119,6 @@ TEMPLATES = [
     },
 ]
 
-
 WSGI_APPLICATION = "config.wsgi.application"
 
 
@@ -117,11 +126,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # =============================================================================
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "",
-).strip()
-
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if DATABASE_URL:
     DATABASES = {
@@ -194,7 +199,6 @@ STATIC_URL = "static/"
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-
 STORAGES = {
     "default": {
         "BACKEND": (
@@ -234,27 +238,39 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
 
-    "DEFAULT_PAGINATION_CLASS": (
-        "rest_framework.pagination.PageNumberPagination"
-    ),
+    # Supports ?page_size=N (capped at 1000). See core/pagination.py.
+    "DEFAULT_PAGINATION_CLASS": "core.pagination.FlexiblePagination",
 
     "PAGE_SIZE": 25,
 
     "DEFAULT_THROTTLE_CLASSES": [
-        (
-            "rest_framework.throttling."
-            "AnonRateThrottle"
-        ),
-        (
-            "rest_framework.throttling."
-            "UserRateThrottle"
-        ),
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
     ],
 
     "DEFAULT_THROTTLE_RATES": {
         "anon": "30/minute",
-        "user": "120/minute",
+        "user": "300/minute",
     },
+
+    # Number of proxies in front of the app (Render uses one), so the
+    # real client IP is used for throttling.
+    "NUM_PROXIES": int(os.getenv("DJANGO_NUM_PROXIES", "1")),
+}
+
+
+# =============================================================================
+# JWT
+# =============================================================================
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=int(os.getenv("JWT_ACCESS_MINUTES", "30"))
+    ),
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=int(os.getenv("JWT_REFRESH_DAYS", "7"))
+    ),
+    "UPDATE_LAST_LOGIN": True,
 }
 
 
@@ -267,16 +283,14 @@ SECURE_PROXY_SSL_HEADER = (
     "https",
 )
 
-SECURE_SSL_REDIRECT = os.getenv(
-    "DJANGO_SECURE_SSL_REDIRECT",
-    "False",
-).lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+# Redirect to HTTPS in production unless explicitly overridden.
+SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", not DEBUG)
 
+SECURE_HSTS_SECONDS = int(
+    os.getenv("DJANGO_SECURE_HSTS_SECONDS", "0" if DEBUG else "31536000")
+)
+
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 
 SESSION_COOKIE_SECURE = not DEBUG
 
@@ -295,61 +309,35 @@ SECURE_REFERRER_POLICY = "same-origin"
 # CORS / CSRF
 # =============================================================================
 
-CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "DJANGO_CORS_ALLOWED_ORIGINS",
-        (
-            "http://localhost:5173,"
-            "http://localhost:5174,"
-            "http://127.0.0.1:5173,"
-            "http://127.0.0.1:5174"
-        ),
-    ).split(",")
-    if origin.strip()
-]
+CORS_ALLOWED_ORIGINS = env_list(
+    "DJANGO_CORS_ALLOWED_ORIGINS",
+    (
+        "http://localhost:5173,"
+        "http://localhost:5174,"
+        "http://127.0.0.1:5173,"
+        "http://127.0.0.1:5174,"
+        "https://darasa-ai-ivory.vercel.app"
+    ),
+)
 
-
-CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "DJANGO_CSRF_TRUSTED_ORIGINS",
-        "",
-    ).split(",")
-    if origin.strip()
-]
+CSRF_TRUSTED_ORIGINS = env_list(
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    "https://darasa-ai-ivory.vercel.app",
+)
 
 
 # =============================================================================
 # M-Pesa / Daraja
 # =============================================================================
 
-MPESA_CONSUMER_KEY = os.getenv(
-    "MPESA_CONSUMER_KEY",
-    "",
-)
+MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "")
 
-MPESA_CONSUMER_SECRET = os.getenv(
-    "MPESA_CONSUMER_SECRET",
-    "",
-)
+MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "")
 
-MPESA_SHORTCODE = os.getenv(
-    "MPESA_SHORTCODE",
-    "",
-)
+MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "")
 
-MPESA_PASSKEY = os.getenv(
-    "MPESA_PASSKEY",
-    "",
-)
+MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "")
 
-MPESA_CALLBACK_URL = os.getenv(
-    "MPESA_CALLBACK_URL",
-    "",
-)
+MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "")
 
-MPESA_ENVIRONMENT = os.getenv(
-    "MPESA_ENVIRONMENT",
-    "sandbox",
-).strip().lower()
+MPESA_ENVIRONMENT = os.getenv("MPESA_ENVIRONMENT", "sandbox").strip().lower()
