@@ -83,11 +83,24 @@ class DarasaAPITestCase(APITestCase):
             grade="G1",
         )
 
+        self.classroom_a_two = ClassRoom.objects.create(
+            school=self.school_a,
+            name="Grade 1 Green",
+            grade="G1",
+        )
+
         self.teacher_record = Teacher.objects.create(
             user=self.teacher,
             school=self.school_a,
             phone="0711111111",
         )
+
+        self.teacher_record.classrooms.add(
+            self.classroom_a,
+        )
+
+        self.student_a.classroom = self.classroom_a
+        self.student_a.save()
 
         self.payment_a = FeePayment.objects.create(
             student=self.student_a,
@@ -116,6 +129,12 @@ class DarasaAPITestCase(APITestCase):
             HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}"
         )
 
+    def get_results(self, response):
+        return response.data.get(
+            "results",
+            response.data,
+        )
+
 
 class SchoolIsolationTests(DarasaAPITestCase):
 
@@ -131,9 +150,11 @@ class SchoolIsolationTests(DarasaAPITestCase):
             200,
         )
 
+        students = self.get_results(response)
+
         student_ids = [
             student["id"]
-            for student in response.data
+            for student in students
         ]
 
         self.assertIn(
@@ -293,6 +314,219 @@ class RoleAccessTests(DarasaAPITestCase):
         )
 
 
+class TeacherSecurityTests(DarasaAPITestCase):
+
+    def test_teacher_only_sees_assigned_classrooms(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.get(
+            reverse("classroom-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        classrooms = self.get_results(response)
+
+        classroom_ids = [
+            classroom["id"]
+            for classroom in classrooms
+        ]
+
+        self.assertIn(
+            self.classroom_a.id,
+            classroom_ids,
+        )
+
+        self.assertNotIn(
+            self.classroom_a_two.id,
+            classroom_ids,
+        )
+
+        self.assertNotIn(
+            self.classroom_b.id,
+            classroom_ids,
+        )
+
+    def test_teacher_only_sees_students_in_assigned_classrooms(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.get(
+            reverse("student-list")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        students = self.get_results(response)
+
+        student_ids = [
+            student["id"]
+            for student in students
+        ]
+
+        self.assertIn(
+            self.student_a.id,
+            student_ids,
+        )
+
+        self.assertNotIn(
+            self.student_b.id,
+            student_ids,
+        )
+
+    def test_teacher_cannot_create_classroom(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.post(
+            reverse("classroom-list"),
+            {
+                "name": "Unauthorized Class",
+                "grade": "G2",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            403,
+        )
+
+        self.assertFalse(
+            ClassRoom.objects.filter(
+                name="Unauthorized Class"
+            ).exists()
+        )
+
+    def test_teacher_cannot_access_unassigned_classroom(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.get(
+            reverse(
+                "classroom-detail",
+                args=[self.classroom_a_two.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    def test_teacher_cannot_access_student_in_unassigned_classroom(self):
+        student = Student.objects.create(
+            first_name="Alice",
+            last_name="Wanjiku",
+            admission_number="DARASA004",
+            grade="G1",
+            school=self.school_a,
+            classroom=self.classroom_a_two,
+        )
+
+        self.authenticate(self.teacher)
+
+        response = self.client.get(
+            reverse(
+                "student-detail",
+                args=[student.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    def test_teacher_can_create_student_in_assigned_classroom(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.post(
+            reverse("student-list"),
+            {
+                "first_name": "Kevin",
+                "last_name": "Mwangi",
+                "admission_number": "DARASA005",
+                "grade": "G1",
+                "classroom": self.classroom_a.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            201,
+        )
+
+        student = Student.objects.get(
+            admission_number="DARASA005"
+        )
+
+        self.assertEqual(
+            student.school_id,
+            self.school_a.id,
+        )
+
+        self.assertEqual(
+            student.classroom_id,
+            self.classroom_a.id,
+        )
+
+    def test_teacher_cannot_create_student_in_unassigned_classroom(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.post(
+            reverse("student-list"),
+            {
+                "first_name": "Brian",
+                "last_name": "Otieno",
+                "admission_number": "DARASA006",
+                "grade": "G1",
+                "classroom": self.classroom_a_two.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            400,
+        )
+
+        self.assertFalse(
+            Student.objects.filter(
+                admission_number="DARASA006"
+            ).exists()
+        )
+
+    def test_teacher_cannot_create_student_without_classroom(self):
+        self.authenticate(self.teacher)
+
+        response = self.client.post(
+            reverse("student-list"),
+            {
+                "first_name": "David",
+                "last_name": "Kimani",
+                "admission_number": "DARASA007",
+                "grade": "G1",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            400,
+        )
+
+        self.assertFalse(
+            Student.objects.filter(
+                admission_number="DARASA007"
+            ).exists()
+        )
+
+
 class CrossSchoolSecurityTests(DarasaAPITestCase):
 
     def test_school_b_admin_cannot_see_school_a_students(self):
@@ -307,9 +541,11 @@ class CrossSchoolSecurityTests(DarasaAPITestCase):
             200,
         )
 
+        students = self.get_results(response)
+
         student_ids = [
             student["id"]
-            for student in response.data
+            for student in students
         ]
 
         self.assertNotIn(
