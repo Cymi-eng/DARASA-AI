@@ -77,6 +77,55 @@ class StudentSerializer(serializers.ModelSerializer):
                 }
             )
 
+        # -------------------------------------------------
+        # TEACHER RESTRICTIONS
+        # -------------------------------------------------
+        if profile.role == "TEACHER":
+            # A teacher must assign every new student
+            # to one of their own classrooms.
+            if classroom is None:
+                raise serializers.ValidationError(
+                    {
+                        "classroom": (
+                            "You must assign the student "
+                            "to one of your classrooms."
+                        )
+                    }
+                )
+
+            # The classroom must actually be assigned
+            # to this teacher.
+            teacher = getattr(
+                request.user,
+                "teacher",
+                None,
+            )
+
+            if teacher is None:
+                raise serializers.ValidationError(
+                    {
+                        "classroom": (
+                            "Your teacher profile could "
+                            "not be found."
+                        )
+                    }
+                )
+
+            if not teacher.classrooms.filter(
+                pk=classroom.pk
+            ).exists():
+                raise serializers.ValidationError(
+                    {
+                        "classroom": (
+                            "You can only assign students "
+                            "to classrooms assigned to you."
+                        )
+                    }
+                )
+
+        # -------------------------------------------------
+        # STUDENT USER VALIDATION
+        # -------------------------------------------------
         student_user = attrs.get("user")
 
         if student_user:

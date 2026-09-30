@@ -1,4 +1,5 @@
-from rest_framework import viewsets
+from rest_framework import permissions, viewsets
+from rest_framework.exceptions import PermissionDenied
 
 from ..models import ClassRoom
 from ..permissions import IsAdminOrTeacher
@@ -10,15 +11,11 @@ class ClassRoomViewSet(SchoolScopedViewSet):
     """
     Classroom management API.
 
-    Classrooms are automatically restricted to the
-    authenticated user's school.
+    Admins can manage classrooms.
 
-    Teachers can only access classrooms assigned
-    to their teacher profile.
-
-    Supports filtering by:
-
-    - grade
+    Teachers can only view classrooms assigned
+    to their teacher profile. Teachers cannot
+    create classrooms.
     """
 
     queryset = ClassRoom.objects.all()
@@ -27,6 +24,16 @@ class ClassRoomViewSet(SchoolScopedViewSet):
     def get_permissions(self):
         return [IsAdminOrTeacher()]
 
+    def _is_teacher(self):
+        user = self.request.user
+
+        return (
+            user.is_authenticated
+            and not user.is_superuser
+            and hasattr(user, "profile")
+            and user.profile.role == "TEACHER"
+        )
+
     def get_queryset(self):
         school = self.get_school()
 
@@ -34,8 +41,6 @@ class ClassRoomViewSet(SchoolScopedViewSet):
             "school"
         )
 
-        # Superusers can access classrooms across
-        # all schools.
         if school is not None:
             queryset = queryset.filter(
                 school=school
@@ -43,19 +48,13 @@ class ClassRoomViewSet(SchoolScopedViewSet):
 
         user = self.request.user
 
-        # Teachers can only access classrooms assigned
+        # Teachers can only see classrooms assigned
         # to their teacher profile.
-        if (
-            user.is_authenticated
-            and not user.is_superuser
-            and hasattr(user, "profile")
-            and user.profile.role == "TEACHER"
-        ):
+        if self._is_teacher():
             queryset = queryset.filter(
                 teachers__user=user
             ).distinct()
 
-        # Filter by grade.
         grade = self.request.query_params.get(
             "grade"
         )
@@ -72,11 +71,14 @@ class ClassRoomViewSet(SchoolScopedViewSet):
 
     def perform_create(self, serializer):
         """
-        Automatically assign a new classroom to the
-        authenticated user's school.
-
-        Superusers may explicitly provide a school.
+        Teachers are not allowed to create classrooms.
+        Classroom creation is an administrative operation.
         """
+
+        if self._is_teacher():
+            raise PermissionDenied(
+                "Teachers cannot create classrooms."
+            )
 
         school = self.get_school()
 
