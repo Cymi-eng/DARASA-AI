@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Finance from "./pages/Finance.jsx";
 import Login from "./pages/Login.jsx";
 import StudentPortal from "./pages/StudentPortal.jsx";
+import StudentSettings from "./pages/StudentSettings.jsx";
 import Students from "./pages/Students.jsx";
 import TeacherPortal from "./pages/TeacherPortal.jsx";
 import Teachers from "./pages/Teachers.jsx";
@@ -32,22 +33,11 @@ function getRoleHome(role) {
   }
 }
 
-function RoleRoute({
-  allowedRoles,
-  children,
-}) {
-  const {
-    isAuthenticated,
-    user,
-  } = useAuth();
+function RoleRoute({ allowedRoles, children }) {
+  const { isAuthenticated, user } = useAuth();
 
   if (!isAuthenticated) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    return <Navigate to="/login" replace />;
   }
 
   if (!user) {
@@ -55,26 +45,14 @@ function RoleRoute({
   }
 
   if (!allowedRoles.includes(user.role)) {
-    return (
-      <Navigate
-        to={getRoleHome(user.role)}
-        replace
-      />
-    );
+    return <Navigate to={getRoleHome(user.role)} replace />;
   }
 
-  return (
-    <AppShell>
-      {children}
-    </AppShell>
-  );
+  return <AppShell>{children}</AppShell>;
 }
 
 function LoginRoute() {
-  const {
-    isAuthenticated,
-    user,
-  } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   if (!isAuthenticated) {
     return <Login />;
@@ -84,17 +62,10 @@ function LoginRoute() {
     return null;
   }
 
-  return (
-    <Navigate
-      to={getRoleHome(user.role)}
-      replace
-    />
-  );
+  return <Navigate to={getRoleHome(user.role)} replace />;
 }
 
-function StudentRoute({
-  section = "overview",
-}) {
+function StudentRoute({ section = "overview" }) {
   return (
     <RoleRoute allowedRoles={["STUDENT"]}>
       <StudentPortal section={section} />
@@ -105,22 +76,16 @@ function StudentRoute({
 function App() {
   return (
     <Routes>
-      <Route
-        path="/login"
-        element={<LoginRoute />}
-      />
+      {/* AUTH */}
+
+      <Route path="/login" element={<LoginRoute />} />
 
       {/* ADMIN */}
 
       <Route
         path="/dashboard"
         element={
-          <RoleRoute
-            allowedRoles={[
-              "ADMIN",
-              "PLATFORM_ADMIN",
-            ]}
-          >
+          <RoleRoute allowedRoles={["ADMIN", "PLATFORM_ADMIN"]}>
             <Dashboard />
           </RoleRoute>
         }
@@ -159,12 +124,7 @@ function App() {
       <Route
         path="/teachers"
         element={
-          <RoleRoute
-            allowedRoles={[
-              "ADMIN",
-              "PLATFORM_ADMIN",
-            ]}
-          >
+          <RoleRoute allowedRoles={["ADMIN", "PLATFORM_ADMIN"]}>
             <Teachers />
           </RoleRoute>
         }
@@ -188,12 +148,7 @@ function App() {
       <Route
         path="/analytics"
         element={
-          <RoleRoute
-            allowedRoles={[
-              "ADMIN",
-              "PLATFORM_ADMIN",
-            ]}
-          >
+          <RoleRoute allowedRoles={["ADMIN", "PLATFORM_ADMIN"]}>
             <Analytics />
           </RoleRoute>
         }
@@ -229,54 +184,48 @@ function App() {
 
       <Route
         path="/student-portal"
-        element={
-          <StudentRoute section="overview" />
-        }
+        element={<StudentRoute section="overview" />}
       />
 
       <Route
         path="/student-portal/progress"
-        element={
-          <StudentRoute section="progress" />
-        }
+        element={<StudentRoute section="progress" />}
       />
 
       <Route
         path="/student-portal/assessments"
-        element={
-          <StudentRoute section="assessments" />
-        }
+        element={<StudentRoute section="assessments" />}
       />
 
       <Route
         path="/student-portal/recommendations"
-        element={
-          <StudentRoute section="recommendations" />
-        }
+        element={<StudentRoute section="recommendations" />}
       />
 
       <Route
         path="/student-portal/fees"
-        element={
-          <StudentRoute section="fees" />
-        }
+        element={<StudentRoute section="fees" />}
       />
 
       <Route
         path="/student-portal/notifications"
-        element={
-          <StudentRoute section="notifications" />
-        }
+        element={<StudentRoute section="notifications" />}
       />
 
       <Route
-        path="*"
+        path="/student-portal/settings"
         element={
-          <Navigate
-            to="/login"
-            replace
-          />
+          <RoleRoute allowedRoles={["STUDENT"]}>
+            <StudentSettings />
+          </RoleRoute>
         }
+      />
+
+      {/* FALLBACK */}
+
+      <Route
+        path="*"
+        element={<Navigate to="/login" replace />}
       />
     </Routes>
   );
