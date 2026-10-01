@@ -1,3 +1,4 @@
+
 from django.contrib import admin
 from django.urls import include, path
 
@@ -19,6 +20,7 @@ from core.views import (
     NotificationViewSet,
     DashboardViewSet,
     DemoDataViewSet,
+    AIAssistantView,
 )
 
 from core.views.mpesa import mpesa_callback
@@ -108,6 +110,13 @@ urlpatterns = [
         name="dashboard",
     ),
 
+    # DARASA-AI Assistant
+    path(
+        "api/ai/assistant/",
+        AIAssistantView.as_view(),
+        name="ai_assistant",
+    ),
+
     # M-Pesa callback
     path(
         "api/mpesa/callback/",
@@ -121,3 +130,4 @@ urlpatterns = [
         include(router.urls),
     ),
 ]
+
