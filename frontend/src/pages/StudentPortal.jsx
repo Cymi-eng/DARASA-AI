@@ -1,5 +1,7 @@
 import {
   AlertCircle,
+  Bot,
+  Send,
   ArrowRight,
   BarChart3,
   Bell,
@@ -236,6 +238,191 @@ function StatCard({
   );
 }
 
+function StudentAIAssistant({ student, competencies, recommendations }) {
+  const [message, setMessage] = useState("");
+  const [response, setResponse] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const suggestedQuestions = [
+    "What am I struggling with?",
+    "What should I study today?",
+    "How can I improve my weakest areas?",
+  ];
+
+  const handleAsk = async (event) => {
+    event?.preventDefault();
+
+    const trimmedMessage = message.trim();
+
+    if (!trimmedMessage || loading) {
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await api.post("/ai/assistant/", {
+        message: trimmedMessage,
+      });
+
+      setResponse(result.data);
+      setMessage("");
+    } catch (requestError) {
+      console.error("Student AI assistant error:", requestError);
+
+      setError(
+        requestError.response?.data?.message ||
+          requestError.response?.data?.detail ||
+          "DARASA-AI could not process your question. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="overflow-hidden rounded-3xl border border-[#DCE9E1] bg-white shadow-sm">
+      <div className="bg-[#F2F8F4] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#0B5D43] text-white shadow-sm">
+              <Bot size={23} />
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0B5D43]">
+                DARASA-AI
+              </p>
+
+              <h2 className="mt-1 text-lg font-extrabold text-[#17382E]">
+                Your learning assistant
+              </h2>
+
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#6F8078]">
+                Ask about your competency progress, areas that need attention,
+                or what you can work on next.
+              </p>
+            </div>
+          </div>
+
+          <span className="inline-flex w-fit rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#456057] shadow-sm">
+            Personalised for {student?.first_name || "you"}
+          </span>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {suggestedQuestions.map((question) => (
+            <button
+              key={question}
+              type="button"
+              onClick={() => setMessage(question)}
+              disabled={loading}
+              className="rounded-full border border-[#D7E4DC] bg-white px-3.5 py-2 text-xs font-semibold text-[#456057] transition hover:border-[#0B5D43] hover:text-[#0B5D43] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {question}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-5 sm:p-6">
+        {error && (
+          <div className="mb-4 rounded-xl border border-[#F0D8D5] bg-[#FFF8F7] px-4 py-3 text-sm text-[#7D312C]">
+            {error}
+          </div>
+        )}
+
+        {response && (
+          <div className="mb-5 space-y-4">
+            <div className="ml-auto max-w-2xl rounded-2xl bg-[#0B5D43] px-4 py-3 text-white">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#B9D9CA]">
+                You
+              </p>
+              <p className="mt-1 text-sm leading-6">
+                {response.message}
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
+                <Bot size={17} />
+              </div>
+
+              <div className="min-w-0 max-w-3xl rounded-2xl bg-[#F5F7F4] px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938D]">
+                  DARASA-AI
+                </p>
+
+                <p className="mt-1 text-sm leading-6 text-[#52635B]">
+                  {response.response}
+                </p>
+              </div>
+            </div>
+
+            {response.context?.competencies?.length > 0 && (
+              <div className="rounded-xl border border-[#E4E8E2] bg-[#FAFBF9] p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-[#87938D]">
+                  Data used
+                </p>
+
+                <p className="mt-1 text-sm text-[#52635B]">
+                  DARASA-AI reviewed your recent competency records to answer
+                  this question.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!response && (
+          <div className="mb-4 rounded-xl bg-[#FAFBF9] px-4 py-3 text-xs leading-5 text-[#7A8982]">
+            Your assistant can use your recorded competency history and
+            personalised learning information to help guide your next steps.
+          </div>
+        )}
+
+        <form onSubmit={handleAsk}>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              type="text"
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              placeholder="Ask DARASA-AI about your learning..."
+              disabled={loading}
+              className="min-w-0 flex-1 rounded-xl border border-[#DCE2DD] bg-white px-4 py-3 text-sm text-[#294A3F] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-2 focus:ring-[#DCE9E1] disabled:bg-[#F5F7F4]"
+            />
+
+            <button
+              type="submit"
+              disabled={!message.trim() || loading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#084936] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 size={17} className="animate-spin" />
+              ) : (
+                <Send size={17} />
+              )}
+
+              {loading ? "Thinking..." : "Ask DARASA-AI"}
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#9AA49F]">
+          <span>
+            {competencies.length} competency records available
+          </span>
+          <span>
+            {recommendations.length} personalised recommendations
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StudentOverview({
   student,
   competencies,
@@ -335,6 +522,12 @@ function StudentOverview({
           </div>
         </div>
       </div>
+
+      <StudentAIAssistant
+        student={student}
+        competencies={competencies}
+        recommendations={recommendations}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
