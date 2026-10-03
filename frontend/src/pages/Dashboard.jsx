@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
   BarChart3,
   BookOpenCheck,
+  Bot,
   CreditCard,
   GraduationCap,
   Loader2,
   School,
+  Send,
+  Sparkles,
   Users,
 } from "lucide-react";
 
@@ -45,6 +49,286 @@ const statCards = [
     description: "Recorded transactions",
   },
 ];
+
+function generateAdminAIResponse({ message, dashboard }) {
+  const question = message.toLowerCase();
+
+  const students = Number(dashboard?.students ?? 0);
+  const teachers = Number(dashboard?.teachers ?? 0);
+  const classrooms = Number(dashboard?.classrooms ?? 0);
+  const assessments = Number(dashboard?.assessments ?? 0);
+  const payments = Number(dashboard?.payments ?? 0);
+
+  if (
+    question.includes("student") ||
+    question.includes("learner") ||
+    question.includes("enrollment")
+  ) {
+    return {
+      title: "Learner overview",
+      body:
+        `The school currently has ${students.toLocaleString()} recorded learners. ` +
+        `Use the Students area to review learner records, admissions, and school enrolment information.`,
+    };
+  }
+
+  if (
+    question.includes("teacher") ||
+    question.includes("staff")
+  ) {
+    return {
+      title: "Teaching staff overview",
+      body:
+        `There are ${teachers.toLocaleString()} teaching staff records currently available. ` +
+        `You can review teacher assignments and classroom coverage from the relevant administration areas.`,
+    };
+  }
+
+  if (
+    question.includes("class") ||
+    question.includes("classroom")
+  ) {
+    return {
+      title: "Classroom overview",
+      body:
+        `The dashboard currently records ${classrooms.toLocaleString()} active classroom groups. ` +
+        `Review the Classrooms section when you need to inspect grades, groups, or classroom organisation.`,
+    };
+  }
+
+  if (
+    question.includes("assessment") ||
+    question.includes("cbc") ||
+    question.includes("competenc")
+  ) {
+    return {
+      title: "CBC assessment overview",
+      body:
+        `There are ${assessments.toLocaleString()} competency assessment records currently available. ` +
+        `These records provide the foundation for monitoring continuous learner progress and identifying areas that may require instructional attention.`,
+    };
+  }
+
+  if (
+    question.includes("finance") ||
+    question.includes("payment") ||
+    question.includes("fee")
+  ) {
+    return {
+      title: "Finance overview",
+      body:
+        `The dashboard currently contains ${payments.toLocaleString()} recorded fee payment transactions. ` +
+        `Use the Finance area to review payment records and the school's fee ledger.`,
+    };
+  }
+
+  if (
+    question.includes("overview") ||
+    question.includes("summary") ||
+    question.includes("status")
+  ) {
+    return {
+      title: "School operations summary",
+      body:
+        `Darasa-AI currently records ${students.toLocaleString()} learners, ` +
+        `${teachers.toLocaleString()} teachers, ${classrooms.toLocaleString()} classrooms, ` +
+        `${assessments.toLocaleString()} CBC assessments, and ` +
+        `${payments.toLocaleString()} fee payment transactions.`,
+    };
+  }
+
+  if (
+    question.includes("priority") ||
+    question.includes("focus") ||
+    question.includes("attention") ||
+    question.includes("next")
+  ) {
+    const priorities = [
+      {
+        value: assessments,
+        text:
+          "review CBC assessment activity and learner competency progress",
+      },
+      {
+        value: students,
+        text: "review learner records and enrolment information",
+      },
+      {
+        value: teachers,
+        text: "review teaching staff and classroom coverage",
+      },
+      {
+        value: payments,
+        text: "review school fee payment records",
+      },
+    ].sort((a, b) => b.value - a.value);
+
+    return {
+      title: "Suggested administrative review",
+      body:
+        `Based on the data currently available, you may want to review ${priorities[0].text}. ` +
+        `The dashboard shows ${priorities[0].value.toLocaleString()} records in that area.`,
+    };
+  }
+
+  return {
+    title: "Admin AI insight",
+    body:
+      `I can help you interpret the current school dashboard. ` +
+      `The system currently records ${students.toLocaleString()} learners, ` +
+      `${teachers.toLocaleString()} teachers, ${classrooms.toLocaleString()} classrooms, ` +
+      `${assessments.toLocaleString()} CBC assessments, and ` +
+      `${payments.toLocaleString()} fee payments. ` +
+      `Try asking about learners, teachers, classrooms, CBC assessments, finance, or the school's overall status.`,
+  };
+}
+
+function AdminAIAssistant({ dashboard }) {
+  const [message, setMessage] = useState("");
+  const [response, setResponse] = useState(null);
+
+  const suggestedQuestions = useMemo(
+    () => [
+      "Give me a school overview",
+      "How many learners are recorded?",
+      "How is our CBC assessment activity?",
+      "What should I focus on next?",
+    ],
+    []
+  );
+
+  function askAI(question) {
+    const cleanQuestion = question.trim();
+
+    if (!cleanQuestion) return;
+
+    const result = generateAdminAIResponse({
+      message: cleanQuestion,
+      dashboard,
+    });
+
+    setResponse({
+      question: cleanQuestion,
+      ...result,
+    });
+
+    setMessage("");
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    askAI(message);
+  }
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#DCE8E1] bg-white shadow-sm">
+      <div className="border-b border-[#E6ECE8] bg-gradient-to-r from-[#F0F8F4] to-white p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0B5D43] text-white shadow-sm">
+              <Bot size={21} />
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-[#17382E]">
+                  Admin AI Assistant
+                </h2>
+
+                <span className="rounded-full bg-[#E7F5EC] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#176B43]">
+                  Live Insights
+                </span>
+              </div>
+
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#68756F]">
+                Ask questions about your school's learners, teachers,
+                classrooms, CBC activity, and financial records.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex w-fit items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-[#52635D] shadow-sm ring-1 ring-[#E6ECE8]">
+            <Sparkles size={14} className="text-[#0B5D43]" />
+            School intelligence
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6">
+        <div className="flex flex-wrap gap-2">
+          {suggestedQuestions.map((question) => (
+            <button
+              key={question}
+              type="button"
+              onClick={() => askAI(question)}
+              className="rounded-full border border-[#DCE8E1] bg-[#FBFCF9] px-3 py-2 text-xs font-semibold text-[#405650] transition hover:border-[#0B5D43] hover:bg-[#EAF3EE] hover:text-[#0B5D43]"
+            >
+              {question}
+            </button>
+          ))}
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="mt-4 flex flex-col gap-2 sm:flex-row"
+        >
+          <input
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder="Ask about your school data..."
+            className="w-full flex-1 rounded-xl border border-[#DDE4DF] bg-[#FBFCF9] px-4 py-3 text-sm text-[#17382E] outline-none transition placeholder:text-[#9AA59F] focus:border-[#0B5D43] focus:ring-2 focus:ring-[#0B5D43]/10"
+          />
+
+          <button
+            type="submit"
+            disabled={!message.trim()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#084B36] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Send size={16} />
+            Ask AI
+          </button>
+        </form>
+
+        {response && (
+          <div className="mt-5 rounded-2xl border border-[#DCE8E1] bg-[#F8FBF9] p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EAF3EE] text-[#0B5D43]">
+                <Bot size={17} />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-[#8A9691]">
+                  Your question
+                </p>
+
+                <p className="mt-1 text-sm font-semibold text-[#405650]">
+                  {response.question}
+                </p>
+
+                <div className="mt-4">
+                  <p className="text-sm font-bold text-[#17382E]">
+                    {response.title}
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-[#68756F]">
+                    {response.body}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <p className="mt-4 text-[11px] text-[#8A9691]">
+          <span className="font-semibold text-[#52635D]">
+            Data source:
+          </span>{" "}
+          Current dashboard records returned by Darasa-AI.
+        </p>
+      </div>
+    </section>
+  );
+}
 
 function Dashboard() {
   const [dashboard, setDashboard] = useState(null);
@@ -223,6 +507,9 @@ function Dashboard() {
             })}
           </section>
 
+          {/* Admin AI Assistant */}
+          <AdminAIAssistant dashboard={dashboard} />
+
           {/* Management overview */}
           <section className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
             <div className="rounded-2xl border border-[#E1E4DE] bg-white p-6 shadow-sm">
@@ -359,3 +646,4 @@ function Dashboard() {
 }
 
 export default Dashboard;
+
