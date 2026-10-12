@@ -1,3 +1,4 @@
+
 import {
   createContext,
   useContext,
@@ -9,7 +10,7 @@ import {
 import api from "../api";
 import {
   getAccessToken,
-  login,
+  login as authenticate,
   logout,
 } from "../auth";
 
@@ -23,39 +24,84 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    let active = true;
+
     const restoreUser = async () => {
       const token = getAccessToken();
 
       if (!token) {
-        setIsAuthenticated(false);
-        setUser(null);
+        if (active) {
+          setIsAuthenticated(false);
+          setUser(null);
+        }
         return;
       }
 
       try {
         const response = await api.get("/users/me/");
 
-        setUser(response.data);
-        setIsAuthenticated(true);
+        if (active) {
+          setUser(response.data);
+          setIsAuthenticated(true);
+        }
       } catch {
-        logout();
-        setUser(null);
-        setIsAuthenticated(false);
+        if (active) {
+          logout();
+          setUser(null);
+          setIsAuthenticated(false);
+        }
       }
     };
 
     restoreUser();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const handleLogin = async (username, password) => {
-    await login(username, password);
+  const handleLogin = async (credentialsOrUsername, passwordArgument) => {
+    let username;
+    let password;
 
-    const response = await api.get("/users/me/");
+    // Support login({ username, password, rememberMe })
+    // and login(username, password).
+    if (
+      credentialsOrUsername !== null &&
+      typeof credentialsOrUsername === "object" &&
+      !Array.isArray(credentialsOrUsername)
+    ) {
+      username = credentialsOrUsername.username;
+      password = credentialsOrUsername.password;
+    } else {
+      username = credentialsOrUsername;
+      password = passwordArgument;
+    }
 
-    setUser(response.data);
-    setIsAuthenticated(true);
+    if (typeof username !== "string" || !username.trim()) {
+      throw new Error("Please enter your username.");
+    }
 
-    return response.data;
+    if (typeof password !== "string" || !password) {
+      throw new Error("Please enter your password.");
+    }
+
+    // The authentication function expects separate string arguments.
+    await authenticate(username.trim(), password);
+
+    try {
+      const response = await api.get("/users/me/");
+
+      setUser(response.data);
+      setIsAuthenticated(true);
+
+      return response.data;
+    } catch (error) {
+      logout();
+      setUser(null);
+      setIsAuthenticated(false);
+      throw error;
+    }
   };
 
   const handleLogout = () => {
