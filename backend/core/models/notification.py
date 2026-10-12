@@ -1,3 +1,4 @@
+
 from django.db import models
 
 from .school import School
@@ -9,6 +10,7 @@ class Notification(models.Model):
         ("SMS", "SMS"),
         ("EMAIL", "Email"),
         ("PUSH", "Push Notification"),
+        ("IN_APP", "In-App Announcement"),
     ]
 
     STATUS_CHOICES = [
@@ -22,12 +24,15 @@ class Notification(models.Model):
         ("TEACHER", "Teacher"),
         ("ADMIN", "Administrator"),
         ("BURSAR", "Bursar"),
+        ("ALL", "Everyone"),
     ]
 
     school = models.ForeignKey(
         School,
         on_delete=models.CASCADE,
         related_name="notifications",
+        null=True,
+        blank=True,
     )
 
     student = models.ForeignKey(
@@ -43,9 +48,7 @@ class Notification(models.Model):
         choices=RECIPIENT_TYPES,
     )
 
-    recipient = models.CharField(
-        max_length=255,
-    )
+    recipient = models.CharField(max_length=255)
 
     channel = models.CharField(
         max_length=10,
@@ -72,22 +75,15 @@ class Notification(models.Model):
         db_index=True,
     )
 
-    failure_reason = models.TextField(
-        blank=True,
-    )
+    failure_reason = models.TextField(blank=True)
 
     sent_at = models.DateTimeField(
         null=True,
         blank=True,
     )
 
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-    )
-
-    updated_at = models.DateTimeField(
-        auto_now=True,
-    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]

@@ -1,9 +1,15 @@
+
 from rest_framework import serializers
 
 from ..models import Notification
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    recipient = serializers.CharField(
+        required=False,
+        allow_blank=True,
+    )
+
     class Meta:
         model = Notification
         fields = [
@@ -44,16 +50,6 @@ class NotificationSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_recipient(self, value):
-        value = value.strip()
-
-        if not value:
-            raise serializers.ValidationError(
-                "Notification recipient is required."
-            )
-
-        return value
-
     def validate(self, attrs):
         request = self.context.get("request")
 
@@ -62,65 +58,88 @@ class NotificationSerializer(serializers.ModelSerializer):
                 "Authentication is required."
             )
 
-        if request.user.is_superuser:
-            self._validate_student_school(
-                attrs
+        user = request.user
+        profile = getattr(user, "profile", None)
+        is_platform_admin = (
+            user.is_superuser
+            or (
+                profile is not None
+                and profile.role == "PLATFORM_ADMIN"
             )
-            return attrs
-
-        profile = getattr(
-            request.user,
-            "profile",
-            None,
         )
 
-        if not profile or not profile.school_id:
-            raise serializers.ValidationError(
-                "Your account is not associated with a school."
-            )
-
+        recipient_type = attrs.get("recipient_type")
+        channel = attrs.get("channel")
         student = attrs.get("student")
 
-        if student and student.school_id != profile.school_id:
+        is_global = (
+            recipient_type == "ALL"
+            or channel == "IN_APP"
+        )
+
+        if is_global:
+            if not is_platform_admin:
+                raise serializers.ValidationError(
+                    "Only platform administrators can publish "
+                    "global announcements."
+                )
+
+            if student is not None:
+                raise serializers.ValidationError(
+                    {
+                        "student": (
+                            "A global announcement cannot target "
+                            "a single student."
+                        )
+                    }
+                )
+
+            # The view sets the global announcement's final values.
+            attrs["recipient_type"] = "ALL"
+            attrs["recipient"] = "ALL"
+            attrs["channel"] = "IN_APP"
+            return attrs
+
+        if not user.is_superuser:
+            if not profile or not profile.school_id:
+                raise serializers.ValidationError(
+                    "Your account must be associated with a school "
+                    "to create school notifications."
+                )
+
+            if student and student.school_id != profile.school_id:
+                raise serializers.ValidationError(
+                    {
+                        "student": (
+                            "Student does not belong to your school."
+                        )
+                    }
+                )
+
+        if not attrs.get("recipient", "").strip():
             raise serializers.ValidationError(
                 {
-                    "student": (
-                        "Student does not belong "
-                        "to your school."
+                    "recipient": (
+                        "Notification recipient is required."
                     )
                 }
             )
+
+        if student:
+            school = (
+                profile.school
+                if profile and profile.school_id
+                else None
+            )
+
+            if school and student.school_id != school.id:
+                raise serializers.ValidationError(
+                    {
+                        "student": (
+                            "Student must belong to the "
+                            "notification school."
+                        )
+                    }
+                )
 
         return attrs
-
-    def _validate_student_school(self, attrs):
-        """
-        Validate student/school consistency for
-        superusers as well.
-        """
-
-        request = self.context.get("request")
-
-        student = attrs.get("student")
-
-        if not student:
-            return
-
-        school = attrs.get("school")
-
-        if school and student.school_id != school.id:
-            raise serializers.ValidationError(
-                {
-                    "student": (
-                        "Student must belong to "
-                        "the notification school."
-                    )
-                }
-            )
-
-        if (
-            request
-            and request.user.is_superuser
-            and not school
-        ):
-            return
