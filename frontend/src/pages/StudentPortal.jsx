@@ -18,6 +18,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import api from "../api";
 
+const SCHOOL_NAME = "ADELAIDE GROUP OF SCHOOLS";
+
 const MASTERY_LABELS = {
   EE: "Exceeding Expectations",
   ME: "Meeting Expectations",
@@ -60,9 +62,7 @@ function getStudentName(student) {
 }
 
 function getInitials(student) {
-  const parts = getStudentName(student)
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = getStudentName(student).split(/\s+/).filter(Boolean);
 
   if (parts.length >= 2) {
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
@@ -89,9 +89,7 @@ function formatDate(value) {
   try {
     const date = new Date(value);
 
-    if (Number.isNaN(date.getTime())) {
-      return String(value);
-    }
+    if (Number.isNaN(date.getTime())) return String(value);
 
     return new Intl.DateTimeFormat("en-KE", {
       day: "numeric",
@@ -122,15 +120,11 @@ function escapeReceiptHtml(value) {
 }
 
 /**
- * Opens a separate print-friendly receipt using the actual payment record.
- * The student can print it or select "Save as PDF" in the browser dialog.
+ * Creates a printable fee receipt for the selected payment.
+ * The receipt can be printed or saved as a PDF.
  */
 function printFeeReceipt(payment, student) {
-  const printWindow = window.open(
-    "",
-    "_blank",
-    "width=850,height=700"
-  );
+  const printWindow = window.open("", "_blank", "width=850,height=700");
 
   if (!printWindow) {
     window.alert(
@@ -140,19 +134,14 @@ function printFeeReceipt(payment, student) {
   }
 
   const studentName = getStudentName(student);
-  const admissionNumber =
-    student?.admission_number || "Not available";
+  const admissionNumber = student?.admission_number || "Not available";
 
-  const schoolName = "Adelaide Group of Schools";
-  
   const reference =
     payment?.mpesa_receipt_number ||
     payment?.transaction_id ||
     "";
 
-  const paymentDate =
-    payment?.paid_at || payment?.created_at;
-
+  const paymentDate = payment?.paid_at || payment?.created_at;
   const amount = formatCurrency(payment?.amount);
   const status = payment?.status || "Not specified";
 
@@ -165,9 +154,7 @@ function printFeeReceipt(payment, student) {
     payment?.receipt_number ||
     payment?.mpesa_receipt_number ||
     payment?.transaction_id ||
-    (payment?.id != null
-      ? `PAY-${payment.id}`
-      : "Not available");
+    (payment?.id != null ? `PAY-${payment.id}` : "Not available");
 
   const grade = student?.grade || "";
   const classroom = student?.classroom?.name || "";
@@ -178,7 +165,7 @@ function printFeeReceipt(payment, student) {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Fee Payment Receipt - ${escapeReceiptHtml(receiptNumber)}</title>
+        <title>${escapeReceiptHtml(SCHOOL_NAME)} - Fee Receipt ${escapeReceiptHtml(receiptNumber)}</title>
 
         <style>
           * {
@@ -208,19 +195,22 @@ function printFeeReceipt(payment, student) {
             align-items: flex-start;
             gap: 20px;
             padding-bottom: 24px;
-            border-bottom: 2px solid #0b5d43;
-          }
-
-          .brand {
-            color: #0b5d43;
-            font-size: 24px;
-            font-weight: 800;
-            letter-spacing: -0.5px;
+            border-bottom: 3px solid #0b5d43;
           }
 
           .school {
+            margin: 0;
+            color: #0b5d43;
+            font-size: 23px;
+            line-height: 1.3;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+          }
+
+          .platform {
             margin-top: 8px;
-            font-size: 14px;
+            color: #536b60;
+            font-size: 12px;
             font-weight: 700;
           }
 
@@ -234,9 +224,9 @@ function printFeeReceipt(payment, student) {
             text-align: right;
           }
 
-          .receipt-label h1 {
+          .receipt-label h2 {
             margin: 0;
-            font-size: 20px;
+            font-size: 19px;
           }
 
           .receipt-label p {
@@ -376,6 +366,10 @@ function printFeeReceipt(payment, student) {
             .receipt-label {
               text-align: left;
             }
+
+            .school {
+              font-size: 20px;
+            }
           }
         </style>
       </head>
@@ -384,13 +378,13 @@ function printFeeReceipt(payment, student) {
         <main class="receipt">
           <header class="header">
             <div>
-              <div class="brand">DARASA-AI</div>
-              <div class="school">${escapeReceiptHtml(schoolName)}</div>
-              <p class="muted">School fee payment receipt</p>
+              <h1 class="school">${escapeReceiptHtml(SCHOOL_NAME)}</h1>
+              <p class="platform">Powered by DARASA-AI</p>
+              <p class="muted">Official school fee payment receipt</p>
             </div>
 
             <div class="receipt-label">
-              <h1>PAYMENT RECEIPT</h1>
+              <h2>PAYMENT RECEIPT</h2>
               <p class="muted">
                 Receipt No: ${escapeReceiptHtml(receiptNumber)}
               </p>
@@ -464,7 +458,7 @@ function printFeeReceipt(payment, student) {
 
             <p class="muted">
               This receipt reflects the payment information recorded in DARASA-AI.
-              Please contact your school office if any details are incorrect.
+              Please contact ${escapeReceiptHtml(SCHOOL_NAME)} if any details are incorrect.
             </p>
           </footer>
         </main>
@@ -494,12 +488,10 @@ function SectionHeader({ title, description, action }) {
         <h1 className="text-xl font-extrabold tracking-tight text-[#17382E] sm:text-2xl">
           {title}
         </h1>
-
         <p className="mt-1 text-sm leading-6 text-[#7A8982]">
           {description}
         </p>
       </div>
-
       {action}
     </div>
   );
@@ -515,11 +507,7 @@ function EmptyState({
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#EAF3EE] text-[#0B5D43]">
         <Icon size={25} />
       </div>
-
-      <h3 className="mt-4 text-base font-bold text-[#17382E]">
-        {title}
-      </h3>
-
+      <h3 className="mt-4 text-base font-bold text-[#17382E]">{title}</h3>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#7A8982]">
         {description}
       </p>
@@ -533,15 +521,12 @@ function ErrorState({ message, onRetry }) {
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#FCEAE7] text-[#B33A31]">
         <AlertCircle size={23} />
       </div>
-
       <h3 className="mt-4 font-bold text-[#7D312C]">
         Unable to load workspace
       </h3>
-
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#8D6B67]">
         {message}
       </p>
-
       <button
         type="button"
         onClick={onRetry}
@@ -562,16 +547,11 @@ function StatCard({ icon: Icon, label, value, description }) {
           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#8A9691]">
             {label}
           </p>
-
           <p className="mt-3 text-3xl font-extrabold tracking-tight text-[#17382E]">
             {value}
           </p>
-
-          <p className="mt-1 text-xs text-[#89958F]">
-            {description}
-          </p>
+          <p className="mt-1 text-xs text-[#89958F]">{description}</p>
         </div>
-
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
           <Icon size={19} />
         </div>
@@ -596,7 +576,6 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
     event?.preventDefault();
 
     const trimmedMessage = message.trim();
-
     if (!trimmedMessage || loading) return;
 
     setLoading(true);
@@ -611,7 +590,6 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
       setMessage("");
     } catch (requestError) {
       console.error("Student AI assistant error:", requestError);
-
       setError(
         requestError.response?.data?.message ||
           requestError.response?.data?.detail ||
@@ -630,23 +608,19 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#0B5D43] text-white shadow-sm">
               <Bot size={23} />
             </div>
-
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0B5D43]">
                 DARASA-AI
               </p>
-
               <h2 className="mt-1 text-lg font-extrabold text-[#17382E]">
                 Your learning assistant
               </h2>
-
               <p className="mt-1 max-w-2xl text-sm leading-6 text-[#6F8078]">
                 Ask about your competency progress, areas that need attention,
                 or what you can work on next.
               </p>
             </div>
           </div>
-
           <span className="inline-flex w-fit rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#456057] shadow-sm">
             Personalised for {student?.first_name || "you"}
           </span>
@@ -680,22 +654,17 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
               <p className="text-[10px] font-bold uppercase tracking-wide text-[#B9D9CA]">
                 You
               </p>
-
-              <p className="mt-1 text-sm leading-6">
-                {response.message}
-              </p>
+              <p className="mt-1 text-sm leading-6">{response.message}</p>
             </div>
 
             <div className="flex gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
                 <Bot size={17} />
               </div>
-
               <div className="min-w-0 max-w-3xl rounded-2xl bg-[#F5F7F4] px-4 py-3">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-[#87938D]">
                   DARASA-AI
                 </p>
-
                 <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#52635B]">
                   {response.response}
                 </p>
@@ -707,7 +676,6 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
                 <p className="text-xs font-bold uppercase tracking-wide text-[#87938D]">
                   Data used
                 </p>
-
                 <p className="mt-1 text-sm text-[#52635B]">
                   DARASA-AI reviewed your recent competency records to answer
                   this question.
@@ -734,7 +702,6 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
               disabled={loading}
               className="min-w-0 flex-1 rounded-xl border border-[#DCE2DD] bg-white px-4 py-3 text-sm text-[#294A3F] outline-none transition placeholder:text-[#A0AAA5] focus:border-[#0B5D43] focus:ring-2 focus:ring-[#DCE9E1] disabled:bg-[#F5F7F4]"
             />
-
             <button
               type="submit"
               disabled={!message.trim() || loading}
@@ -745,7 +712,6 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
               ) : (
                 <Send size={17} />
               )}
-
               {loading ? "Thinking..." : "Ask DARASA-AI"}
             </button>
           </div>
@@ -783,9 +749,7 @@ function StudentOverview({
 
   const masteryPercentage =
     total > 0
-      ? Math.round(
-          ((masteryCounts.EE + masteryCounts.ME) / total) * 100
-        )
+      ? Math.round(((masteryCounts.EE + masteryCounts.ME) / total) * 100)
       : 0;
 
   const recentAssessments = competencies.slice(0, 5);
@@ -798,29 +762,24 @@ function StudentOverview({
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#B9D9CA]">
               Student Learning Workspace
             </p>
-
             <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
               Welcome back, {student?.first_name || "Student"}.
             </h1>
-
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[#D2E7DC]">
               Track your CBC progress, review assessments, follow personalised
               recommendations, and stay up to date with your school.
             </p>
-
             <div className="mt-5 flex flex-wrap gap-2">
               {student?.grade && (
                 <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">
                   {student.grade}
                 </span>
               )}
-
               {student?.admission_number && (
                 <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">
                   {student.admission_number}
                 </span>
               )}
-
               {student?.classroom?.name && (
                 <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">
                   {student.classroom.name}
@@ -828,7 +787,6 @@ function StudentOverview({
               )}
             </div>
           </div>
-
           <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-white/10 text-2xl font-extrabold ring-1 ring-white/20">
             {getInitials(student)}
           </div>
@@ -848,23 +806,18 @@ function StudentOverview({
           value={`${masteryPercentage}%`}
           description={`${total} assessments recorded`}
         />
-
         <StatCard
           icon={GraduationCap}
           label="Learning areas"
-          value={
-            new Set(competencies.map((item) => item.learning_area)).size
-          }
+          value={new Set(competencies.map((item) => item.learning_area)).size}
           description="Areas with recorded assessments"
         />
-
         <StatCard
           icon={Wallet}
           label="Fee account"
           value={formatCurrency(ledger?.balance || 0)}
           description="Net recorded balance"
         />
-
         <StatCard
           icon={Bell}
           label="Notifications"
@@ -922,19 +875,16 @@ function StudentOverview({
                           {label}
                         </p>
                       </div>
-
                       <span className="text-sm font-extrabold text-[#0B5D43]">
                         {percentage}%
                       </span>
                     </div>
-
                     <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5EAE5]">
                       <div
                         className="h-full rounded-full bg-[#0B5D43]"
                         style={{ width: `${percentage}%` }}
                       />
                     </div>
-
                     <p className="mt-2 text-[11px] text-[#89958F]">
                       {records.length} assessment
                       {records.length === 1 ? "" : "s"}
@@ -950,7 +900,6 @@ function StudentOverview({
           <div className="border-b border-[#E9ECE7] px-5 py-4">
             <h2 className="font-bold text-[#17382E]">Mastery overview</h2>
           </div>
-
           <div className="space-y-3 p-5">
             {Object.entries(masteryCounts).map(([level, count]) => (
               <div
@@ -963,7 +912,6 @@ function StudentOverview({
                     {getMasteryLabel(level)}
                   </p>
                 </div>
-
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-bold ${getMasteryStyle(level)}`}
                 >
@@ -983,7 +931,6 @@ function StudentOverview({
               Your latest competency records.
             </p>
           </div>
-
           {recentAssessments.length === 0 ? (
             <p className="px-5 py-10 text-center text-sm text-[#7A8982]">
               No recent competency records.
@@ -1003,7 +950,6 @@ function StudentOverview({
                       {item.strand || "Competency assessment"}
                     </p>
                   </div>
-
                   <div className="shrink-0 text-right">
                     <span
                       className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${getMasteryStyle(item.mastery_level)}`}
@@ -1029,7 +975,6 @@ function StudentOverview({
               Suggestions generated from your learning history.
             </p>
           </div>
-
           {recommendations.length === 0 ? (
             <div className="px-5 py-10 text-center">
               <GraduationCap size={28} className="mx-auto text-[#A0AAA5]" />
@@ -1047,7 +992,6 @@ function StudentOverview({
                   <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#EAF3EE] text-[#0B5D43]">
                     <ArrowRight size={15} />
                   </div>
-
                   <div>
                     <p className="text-sm font-bold text-[#294A3F]">
                       {recommendation.title ||
@@ -1073,7 +1017,6 @@ function StudentOverview({
           <div className="border-b border-[#E9ECE7] px-5 py-4">
             <h2 className="font-bold text-[#17382E]">Fee activity</h2>
           </div>
-
           {payments.length === 0 ? (
             <p className="px-5 py-10 text-center text-sm text-[#7A8982]">
               No fee payment records.
@@ -1095,7 +1038,6 @@ function StudentOverview({
                       {formatDate(payment.paid_at || payment.created_at)}
                     </p>
                   </div>
-
                   <p className="font-bold text-[#0B5D43]">
                     {formatCurrency(payment.amount)}
                   </p>
@@ -1109,7 +1051,6 @@ function StudentOverview({
           <div className="border-b border-[#E9ECE7] px-5 py-4">
             <h2 className="font-bold text-[#17382E]">Notifications</h2>
           </div>
-
           {notifications.length === 0 ? (
             <p className="px-5 py-10 text-center text-sm text-[#7A8982]">
               No notifications yet.
@@ -1142,7 +1083,6 @@ function StudentOverview({
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-[#0B5D43] shadow-sm">
             <BarChart3 size={20} />
           </div>
-
           <div>
             <h2 className="font-bold text-[#17382E]">
               Your adaptive learning profile
@@ -1150,12 +1090,10 @@ function StudentOverview({
             <p className="mt-1 text-sm leading-6 text-[#6F8078]">
               Insights generated from your competency history.
             </p>
-
             <div className="mt-4 flex flex-wrap gap-3">
               <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#456057]">
                 Intervention count {adaptiveProfile?.intervention_count || 0}
               </span>
-
               {adaptiveProfile?.overall_mastery && (
                 <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#456057]">
                   Overall mastery {adaptiveProfile.overall_mastery}
@@ -1180,7 +1118,6 @@ function StudentProgress({ competencies }) {
   };
 
   const mastered = masteryCounts.EE + masteryCounts.ME;
-
   const masteryPercentage =
     total > 0 ? Math.round((mastered / total) * 100) : 0;
 
@@ -1253,7 +1190,6 @@ function StudentProgress({ competencies }) {
                     {code}
                   </p>
                   <p className="mt-1 font-bold text-[#294A3F]">{label}</p>
-
                   <div className="mt-4 flex items-end justify-between">
                     <span className="text-2xl font-extrabold text-[#0B5D43]">
                       {percentage}%
@@ -1262,7 +1198,6 @@ function StudentProgress({ competencies }) {
                       {records.length} records
                     </span>
                   </div>
-
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E5EAE5]">
                     <div
                       className="h-full rounded-full bg-[#0B5D43]"
@@ -1280,7 +1215,6 @@ function StudentProgress({ competencies }) {
         <div className="border-b border-[#E9ECE7] px-5 py-4">
           <h2 className="font-bold text-[#17382E]">Mastery breakdown</h2>
         </div>
-
         <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
           {Object.entries(masteryCounts).map(([level, count]) => (
             <div
@@ -1297,7 +1231,6 @@ function StudentProgress({ competencies }) {
                   {count}
                 </span>
               </div>
-
               <p className="mt-3 text-xs text-[#7A8982]">
                 {getMasteryLabel(level)}
               </p>
@@ -1342,7 +1275,6 @@ function StudentAssessments({ competencies }) {
                   </th>
                 </tr>
               </thead>
-
               <tbody>
                 {competencies.map((item) => (
                   <tr
@@ -1357,11 +1289,9 @@ function StudentAssessments({ competencies }) {
                         {item.sub_strand || ""}
                       </p>
                     </td>
-
                     <td className="px-5 py-4 text-sm text-[#68766F]">
                       {item.strand || "—"}
                     </td>
-
                     <td className="px-5 py-4">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-bold ${getMasteryStyle(item.mastery_level)}`}
@@ -1369,7 +1299,6 @@ function StudentAssessments({ competencies }) {
                         {item.mastery_level || "—"}
                       </span>
                     </td>
-
                     <td className="px-5 py-4 text-sm text-[#68766F]">
                       {formatDate(item.assessed_on)}
                     </td>
@@ -1409,14 +1338,12 @@ function StudentRecommendations({ recommendations }) {
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
                   <GraduationCap size={20} />
                 </div>
-
                 <div>
                   <h3 className="font-bold text-[#17382E]">
                     {recommendation.title ||
                       recommendation.learning_area ||
                       "Learning recommendation"}
                   </h3>
-
                   <p className="mt-2 text-sm leading-6 text-[#718078]">
                     {recommendation.description ||
                       recommendation.reason ||
@@ -1448,14 +1375,12 @@ function StudentFees({ ledger, payments, student }) {
           value={formatCurrency(ledger?.balance || 0)}
           description="Recorded account balance"
         />
-
         <StatCard
           icon={CheckCircle2}
           label="Payments"
           value={payments.length}
           description="Recorded transactions"
         />
-
         <StatCard
           icon={Clock3}
           label="Account"
@@ -1469,7 +1394,6 @@ function StudentFees({ ledger, payments, student }) {
           <h2 className="font-bold text-[#17382E]">
             Fee activity and receipts
           </h2>
-
           <p className="mt-1 text-xs text-[#87938D]">
             Print a receipt for any payment recorded on your account.
           </p>
@@ -1493,12 +1417,10 @@ function StudentFees({ ledger, payments, student }) {
                       payment.receipt_number ||
                       `Payment #${payment.id}`}
                   </p>
-
                   <p className="mt-1 text-xs text-[#89958F]">
                     Payment date:{" "}
                     {formatDate(payment.paid_at || payment.created_at)}
                   </p>
-
                   {payment.status && (
                     <span className="mt-2 inline-flex rounded-full bg-[#EAF3EE] px-2.5 py-1 text-[10px] font-bold text-[#0B5D43]">
                       {payment.status}
@@ -1510,7 +1432,6 @@ function StudentFees({ ledger, payments, student }) {
                   <p className="text-lg font-extrabold text-[#0B5D43]">
                     {formatCurrency(payment.amount)}
                   </p>
-
                   <button
                     type="button"
                     onClick={() => printFeeReceipt(payment, student)}
@@ -1554,16 +1475,13 @@ function StudentNotifications({ notifications }) {
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
                   <Bell size={18} />
                 </div>
-
                 <div className="min-w-0">
                   <h3 className="font-bold text-[#17382E]">
                     {notification.subject || "School notification"}
                   </h3>
-
                   <p className="mt-1 text-sm leading-6 text-[#718078]">
                     {notification.message || "You have a new notification."}
                   </p>
-
                   <p className="mt-2 text-[11px] text-[#98A39E]">
                     {formatDate(
                       notification.sent_at || notification.created_at
@@ -1621,31 +1539,22 @@ function StudentPortal({ section = "overview" }) {
       setNotifications(notificationData);
 
       if (studentData?.id) {
-        const [
-          adaptiveResponse,
-          recommendationsResponse,
-        ] = await Promise.allSettled([
-          api.get(
-            `/students/${studentData.id}/adaptive-profile/`
-          ),
-          api.get(
-            `/students/${studentData.id}/recommendations/`
-          ),
-        ]);
+        const [adaptiveResponse, recommendationsResponse] =
+          await Promise.allSettled([
+            api.get(`/students/${studentData.id}/adaptive-profile/`),
+            api.get(`/students/${studentData.id}/recommendations/`),
+          ]);
 
         if (adaptiveResponse.status === "fulfilled") {
           setAdaptiveProfile(adaptiveResponse.value.data);
         }
 
         if (recommendationsResponse.status === "fulfilled") {
-          setRecommendations(
-            getList(recommendationsResponse.value.data)
-          );
+          setRecommendations(getList(recommendationsResponse.value.data));
         }
       }
     } catch (requestError) {
       console.error("Student workspace error:", requestError);
-
       setError(
         requestError.response?.data?.detail ||
           "We could not load your student workspace. Please try again."
@@ -1685,9 +1594,7 @@ function StudentPortal({ section = "overview" }) {
   }
 
   if (section === "recommendations") {
-    return (
-      <StudentRecommendations recommendations={recommendations} />
-    );
+    return <StudentRecommendations recommendations={recommendations} />;
   }
 
   if (section === "fees") {
@@ -1709,7 +1616,6 @@ function StudentPortal({ section = "overview" }) {
       {error && (
         <div className="flex items-center justify-between gap-4 rounded-xl border border-[#F0D8D5] bg-[#FFF8F7] px-4 py-3 text-sm text-[#7D312C]">
           <span>{error}</span>
-
           <button
             type="button"
             onClick={loadWorkspace}
@@ -1722,7 +1628,6 @@ function StudentPortal({ section = "overview" }) {
 
       <div className="flex items-center justify-between">
         <div />
-
         <button
           type="button"
           onClick={loadWorkspace}
