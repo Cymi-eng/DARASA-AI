@@ -15,7 +15,6 @@ import {
 
 import { useAuth } from "../context/AuthContext.jsx";
 
-// Education images for the fading login slideshow.
 const loginSlideshowImages = [
   "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1800&q=85",
   "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?auto=format&fit=crop&w=1800&q=85",
@@ -49,11 +48,9 @@ function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Slideshow state.
   const [activeSlide, setActiveSlide] = useState(0);
+  const [failedImages, setFailedImages] = useState([]);
 
-  // Fade to the next education image every six seconds.
   useEffect(() => {
     const interval = window.setInterval(() => {
       setActiveSlide(
@@ -71,6 +68,7 @@ function Login() {
     setIsSubmitting(true);
 
     try {
+      // Keep the existing authentication argument format.
       const user = await login({
         username: username.trim(),
         password,
@@ -100,48 +98,56 @@ function Login() {
     }
   };
 
+  const handleImageError = (image) => {
+    setFailedImages((current) =>
+      current.includes(image) ? current : [...current, image]
+    );
+  };
+
   return (
     <div className="min-h-screen bg-white lg:flex">
-      {/* ======================================================
-          LEFT PANEL: PERMANENT BACKGROUND + FADING SLIDESHOW
-      ======================================================= */}
-      <section className="relative hidden min-h-screen overflow-hidden lg:block lg:w-[56%]">
-        {/* Permanent classroom background */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url('https://mogotiolittlefriends.sc.ke/assets/images/school/Class_2.jpg')",
+      {/* LEFT PANEL: CLASSROOM BACKGROUND AND FADING SLIDESHOW */}
+      <section className="relative hidden min-h-screen overflow-hidden bg-emerald-950 lg:block lg:w-[56%]">
+        {/* Permanent background image */}
+        <img
+          src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1800&q=85"
+          alt=""
+          aria-hidden="true"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
           }}
+          className="absolute inset-0 h-full w-full object-cover object-center"
         />
 
-        {/* Automatically fading education images */}
+        {/* Fading slideshow images */}
         {loginSlideshowImages.map((image, index) => (
-          <div
+          <img
             key={image}
+            src={image}
+            alt=""
             aria-hidden="true"
-            className="absolute inset-0 bg-cover bg-center transition-opacity duration-[1500ms] ease-in-out"
-            style={{
-              backgroundImage: `url("${image}")`,
-              opacity: activeSlide === index ? 0.48 : 0,
-            }}
+            onError={() => handleImageError(image)}
+            className={`absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-[1500ms] ease-in-out ${
+              activeSlide === index &&
+              !failedImages.includes(image)
+                ? "opacity-100"
+                : "opacity-0"
+            }`}
           />
         ))}
 
-        {/* Green overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/90 via-emerald-900/75 to-green-950/85" />
+        {/* Lighter green overlay: images remain visible */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/55 via-emerald-900/40 to-green-950/55" />
 
-        {/* Gold and green decorative overlays */}
+        {/* Decorative light effects */}
         <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-yellow-400/15 blur-3xl" />
         <div className="absolute -bottom-40 -right-20 h-[30rem] w-[30rem] rounded-full bg-emerald-400/20 blur-3xl" />
 
-        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-white/10 to-transparent" />
-
-        {/* Left panel content */}
+        {/* LEFT CONTENT */}
         <div className="relative z-10 flex min-h-screen flex-col justify-between p-10 xl:p-14">
-          {/* Brand */}
+          {/* Logo */}
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-400 text-emerald-950 shadow-xl shadow-black/20">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-400 text-emerald-950 shadow-xl">
               <BookOpenCheck size={30} strokeWidth={2.4} />
             </div>
 
@@ -149,81 +155,99 @@ function Login() {
               <h1 className="text-3xl font-extrabold tracking-tight text-white">
                 DARASA<span className="text-yellow-400">-AI</span>
               </h1>
-              <p className="mt-1 text-sm font-medium tracking-wide text-emerald-100">
-                Smart Learning. Better Outcomes.
+              <p className="mt-1 text-sm font-medium tracking-wide text-white">
+                Adaptive Learning | Continuous Assessment | Better Futures
               </p>
             </div>
           </div>
 
-          {/* Hero content */}
+          {/* Main message */}
           <div className="max-w-2xl py-12">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-yellow-300 backdrop-blur-sm">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 py-2 text-sm font-semibold text-yellow-300 backdrop-blur-sm">
               <GraduationCap size={18} />
-              <span>Built for CBC Education</span>
+              KENYA EDUCATION SECTOR
             </div>
 
-            <h2 className="max-w-xl text-4xl font-extrabold leading-tight tracking-tight text-white xl:text-6xl">
-              Empowering every learner to{" "}
-              <span className="text-yellow-400">reach their potential.</span>
-            </h2>
-
-            <p className="mt-6 max-w-xl text-base leading-8 text-emerald-50/90 xl:text-lg">
-              A smarter way to manage learning, monitor competency mastery,
-              and support teachers with meaningful insights into every
-              learner&apos;s progress.
+            <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-yellow-300">
+              Empowering Kenya&apos;s CBC Journey
             </p>
 
-            {/* Feature cards */}
-            <div className="mt-10 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/20 text-yellow-300">
+            <h2 className="max-w-xl text-4xl font-extrabold leading-tight tracking-tight text-white xl:text-6xl">
+              Every Child Learns.
+              <br />
+              Every Competency{" "}
+              <span className="text-yellow-400">Counts.</span>
+            </h2>
+
+            <p className="mt-6 max-w-xl text-base leading-8 text-white xl:text-lg">
+              Darasa-AI is Kenya&apos;s adaptive learning platform, built for
+              CBC education. We support schools with personalized learning,
+              continuous assessment, and data-driven insights for better
+              outcomes.
+            </p>
+
+            {/* Features */}
+            <div className="mt-10 grid grid-cols-2 gap-4 xl:grid-cols-4">
+              <div className="rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-md">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/25 text-yellow-300">
                   <BookOpenCheck size={22} />
                 </div>
-                <h3 className="font-bold text-white">CBC Learning</h3>
-                <p className="mt-2 text-sm leading-6 text-emerald-100">
-                  Competency-focused learning and assessment.
-                </p>
+                <h3 className="font-bold text-white">Personalized</h3>
+                <p className="mt-1 text-sm text-white">Learning</p>
               </div>
 
-              <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/20 text-yellow-300">
+              <div className="rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-md">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/25 text-yellow-300">
                   <BarChart3 size={22} />
                 </div>
-                <h3 className="font-bold text-white">Progress Insights</h3>
-                <p className="mt-2 text-sm leading-6 text-emerald-100">
-                  Track mastery and identify learning gaps.
-                </p>
+                <h3 className="font-bold text-white">Continuous</h3>
+                <p className="mt-1 text-sm text-white">Assessment</p>
               </div>
 
-              <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/20 text-yellow-300">
+              <div className="rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-md">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/25 text-yellow-300">
+                  <GraduationCap size={22} />
+                </div>
+                <h3 className="font-bold text-white">Actionable</h3>
+                <p className="mt-1 text-sm text-white">Insights</p>
+              </div>
+
+              <div className="rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-md">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/25 text-yellow-300">
                   <UsersRound size={22} />
                 </div>
-                <h3 className="font-bold text-white">Connected Schools</h3>
-                <p className="mt-2 text-sm leading-6 text-emerald-100">
-                  Support teachers, learners, and school leaders.
+                <h3 className="font-bold text-white">Stronger</h3>
+                <p className="mt-1 text-sm text-white">Communities</p>
+              </div>
+            </div>
+
+            <div className="mt-8 inline-flex items-center gap-3 rounded-xl border border-white/20 bg-black/15 px-4 py-3 backdrop-blur-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-400 text-emerald-950">
+                <GraduationCap size={23} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-yellow-300">
+                  CBC Ready
+                </p>
+                <p className="text-sm font-medium text-white">
+                  Competency Based Curriculum
                 </p>
               </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/20 pt-6 text-sm text-emerald-100/80">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/25 pt-6 text-sm text-white">
             <p>© {new Date().getFullYear()} DARASA-AI</p>
-            <p>Advancing education through technology.</p>
+            <p>Every learner. Every competency. A better future.</p>
           </div>
         </div>
-
-        {/* Decorative transition on the right edge */}
-        <div className="pointer-events-none absolute right-0 top-0 z-20 h-full w-10 bg-gradient-to-l from-white/15 to-transparent" />
       </section>
 
-      {/* ======================================================
-          RIGHT PANEL: LOGIN FORM
-      ======================================================= */}
+      {/* RIGHT PANEL: LOGIN FORM */}
       <section className="flex min-h-screen w-full items-center justify-center bg-slate-50 px-5 py-10 sm:px-8 lg:w-[44%] lg:bg-white lg:px-10 xl:px-16">
         <div className="w-full max-w-md">
-          {/* Mobile brand */}
+          {/* Mobile logo */}
           <div className="mb-10 flex items-center gap-3 lg:hidden">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-700 text-yellow-300 shadow-lg">
               <BookOpenCheck size={26} />
@@ -234,7 +258,7 @@ function Login() {
                 DARASA<span className="text-emerald-600">-AI</span>
               </h1>
               <p className="text-xs font-medium text-slate-500">
-                Smart Learning. Better Outcomes.
+                Adaptive Learning | Better Futures
               </p>
             </div>
           </div>
@@ -246,15 +270,16 @@ function Login() {
             </div>
 
             <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">
-              Welcome back
+              Welcome Back
             </h2>
 
             <p className="mt-3 leading-6 text-slate-500">
-              Sign in to your DARASA-AI account to continue.
+              Sign in to access your school dashboard and manage your
+              learners, assessments, and school data.
             </p>
           </div>
 
-          {/* Error message */}
+          {/* Error */}
           {error && (
             <div
               role="alert"
@@ -264,7 +289,7 @@ function Login() {
             </div>
           )}
 
-          {/* Login form */}
+          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Username */}
             <div>
@@ -333,8 +358,8 @@ function Login() {
               </div>
             </div>
 
-            {/* Remember me */}
-            <div className="flex items-center justify-between gap-4">
+            {/* Remember me and forgot password */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-600">
                 <input
                   type="checkbox"
@@ -344,6 +369,18 @@ function Login() {
                 />
                 Remember me
               </label>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setError(
+                    "Please contact your school or system administrator to reset your password."
+                  )
+                }
+                className="text-sm font-semibold text-emerald-700 transition hover:text-emerald-900"
+              >
+                Forgot password?
+              </button>
             </div>
 
             {/* Submit */}
@@ -363,21 +400,32 @@ function Login() {
             </button>
           </form>
 
-          {/* Access information */}
-          <div className="mt-8 rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                <LockKeyhole size={18} />
+          {/* Security and CBC information */}
+          <div className="mt-8 space-y-3">
+            <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                <LockKeyhole size={19} />
               </div>
 
               <div>
                 <h3 className="text-sm font-bold text-slate-800">
-                  Secure school access
+                  Secure &amp; Trusted
                 </h3>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Use the login credentials provided by your school or
-                  system administrator. Accounts are managed by authorized
-                  administrators.
+                <p className="mt-1 text-sm text-slate-500">
+                  Protected school data and secure account access.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-yellow-50 text-yellow-700">
+                <GraduationCap size={20} />
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">CBC Ready</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Competency-based learning and continuous assessment.
                 </p>
               </div>
             </div>
