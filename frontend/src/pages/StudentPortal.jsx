@@ -1,3 +1,4 @@
+
 import {
   AlertCircle,
   Bot,
@@ -7,7 +8,6 @@ import {
   Bell,
   BookOpenCheck,
   CheckCircle2,
-  ChevronRight,
   Clock3,
   GraduationCap,
   Loader2,
@@ -44,21 +44,13 @@ const LEARNING_AREAS = {
 };
 
 function getList(data) {
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  if (Array.isArray(data?.results)) {
-    return data.results;
-  }
-
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
   return [];
 }
 
 function getStudentName(student) {
-  if (!student) {
-    return "Student";
-  }
+  if (!student) return "Student";
 
   const name = `${student.first_name || ""} ${
     student.last_name || ""
@@ -68,76 +60,439 @@ function getStudentName(student) {
 }
 
 function getInitials(student) {
-  const name = getStudentName(student);
-
-  const parts = name.split(/\s+/).filter(Boolean);
+  const parts = getStudentName(student)
+    .split(/\s+/)
+    .filter(Boolean);
 
   if (parts.length >= 2) {
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   }
 
-  return name.slice(0, 2).toUpperCase();
+  return getStudentName(student).slice(0, 2).toUpperCase();
 }
 
 function getLearningAreaLabel(value) {
-  return (
-    LEARNING_AREAS[value] ||
-    value ||
-    "Learning area"
-  );
+  return LEARNING_AREAS[value] || value || "Learning area";
 }
 
 function getMasteryLabel(value) {
-  return (
-    MASTERY_LABELS[value] ||
-    value ||
-    "Not assessed"
-  );
+  return MASTERY_LABELS[value] || value || "Not assessed";
 }
 
 function getMasteryStyle(value) {
-  return (
-    MASTERY_STYLES[value] ||
-    "bg-[#F0F3F0] text-[#6D7B75]"
-  );
+  return MASTERY_STYLES[value] || "bg-[#F0F3F0] text-[#6D7B75]";
 }
 
 function formatDate(value) {
-  if (!value) {
-    return "Date unavailable";
-  }
+  if (!value) return "Date unavailable";
 
   try {
-    return new Intl.DateTimeFormat(
-      "en-KE",
-      {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      }
-    ).format(new Date(value));
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+
+    return new Intl.DateTimeFormat("en-KE", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(date);
   } catch {
-    return value;
+    return String(value);
   }
 }
 
 function formatCurrency(value) {
   const amount = Number(value || 0);
 
-  return `Ksh ${amount.toLocaleString(
-    "en-KE",
-    {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }
-  )}`;
+  return `Ksh ${amount.toLocaleString("en-KE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
-function SectionHeader({
-  title,
-  description,
-  action,
-}) {
+function escapeReceiptHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
+ * Opens a separate print-friendly receipt using the actual payment record.
+ * The student can print it or select "Save as PDF" in the browser dialog.
+ */
+function printFeeReceipt(payment, student) {
+  const printWindow = window.open(
+    "",
+    "_blank",
+    "width=850,height=700"
+  );
+
+  if (!printWindow) {
+    window.alert(
+      "The receipt window was blocked. Please allow pop-ups for DARASA-AI and try again."
+    );
+    return;
+  }
+
+  const studentName = getStudentName(student);
+  const admissionNumber =
+    student?.admission_number || "Not available";
+
+  const schoolName =
+    student?.school_name ||
+    student?.school?.name ||
+    payment?.school_name ||
+    payment?.school?.name ||
+    "School name not provided";
+
+  const reference =
+    payment?.mpesa_receipt_number ||
+    payment?.transaction_id ||
+    "";
+
+  const paymentDate =
+    payment?.paid_at || payment?.created_at;
+
+  const amount = formatCurrency(payment?.amount);
+  const status = payment?.status || "Not specified";
+
+  const paymentMethod =
+    payment?.payment_method ||
+    payment?.method ||
+    (payment?.mpesa_receipt_number ? "M-Pesa" : "Not specified");
+
+  const receiptNumber =
+    payment?.receipt_number ||
+    payment?.mpesa_receipt_number ||
+    payment?.transaction_id ||
+    (payment?.id != null
+      ? `PAY-${payment.id}`
+      : "Not available");
+
+  const grade = student?.grade || "";
+  const classroom = student?.classroom?.name || "";
+
+  const receiptHtml = `
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Fee Payment Receipt - ${escapeReceiptHtml(receiptNumber)}</title>
+
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            padding: 32px;
+            background: #f3f6f3;
+            color: #243b31;
+            font-family: Arial, Helvetica, sans-serif;
+          }
+
+          .receipt {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 36px;
+            background: #fff;
+            border: 1px solid #dfe7e0;
+            border-radius: 12px;
+          }
+
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+            padding-bottom: 24px;
+            border-bottom: 2px solid #0b5d43;
+          }
+
+          .brand {
+            color: #0b5d43;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+          }
+
+          .school {
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: 700;
+          }
+
+          .muted {
+            color: #78877f;
+            font-size: 12px;
+            line-height: 1.6;
+          }
+
+          .receipt-label {
+            text-align: right;
+          }
+
+          .receipt-label h1 {
+            margin: 0;
+            font-size: 20px;
+          }
+
+          .receipt-label p {
+            margin: 8px 0 0;
+            overflow-wrap: anywhere;
+          }
+
+          .success {
+            display: inline-block;
+            margin-top: 24px;
+            padding: 8px 12px;
+            border-radius: 20px;
+            background: #eaf3ee;
+            color: #0b5d43;
+            font-size: 12px;
+            font-weight: 700;
+          }
+
+          .amount-box {
+            margin: 24px 0;
+            padding: 22px;
+            border-radius: 10px;
+            background: #f2f8f4;
+          }
+
+          .amount-label {
+            color: #6f8078;
+            font-size: 12px;
+          }
+
+          .amount {
+            margin-top: 8px;
+            color: #0b5d43;
+            font-size: 30px;
+            font-weight: 800;
+          }
+
+          .section-title {
+            margin: 26px 0 12px;
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+          }
+
+          .details {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          .details td {
+            padding: 13px 0;
+            border-bottom: 1px solid #edf0ed;
+            font-size: 13px;
+            vertical-align: top;
+            overflow-wrap: anywhere;
+          }
+
+          .details td:first-child {
+            width: 42%;
+            color: #78877f;
+          }
+
+          .details td:last-child {
+            font-weight: 600;
+            text-align: right;
+          }
+
+          .footer {
+            margin-top: 30px;
+            padding-top: 18px;
+            border-top: 1px solid #e5eae5;
+            text-align: center;
+          }
+
+          .actions {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin: 24px auto;
+          }
+
+          button {
+            padding: 11px 18px;
+            border: 0;
+            border-radius: 8px;
+            background: #0b5d43;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+          }
+
+          .secondary {
+            background: #e8eee9;
+            color: #294a3f;
+          }
+
+          @media print {
+            @page {
+              size: A4;
+              margin: 15mm;
+            }
+
+            body {
+              padding: 0;
+              background: #fff;
+              print-color-adjust: exact;
+              -webkit-print-color-adjust: exact;
+            }
+
+            .receipt {
+              max-width: none;
+              padding: 0;
+              border: 0;
+              border-radius: 0;
+            }
+
+            .actions {
+              display: none !important;
+            }
+          }
+
+          @media screen and (max-width: 600px) {
+            body {
+              padding: 12px;
+            }
+
+            .receipt {
+              padding: 20px;
+            }
+
+            .header {
+              flex-direction: column;
+            }
+
+            .receipt-label {
+              text-align: left;
+            }
+          }
+        </style>
+      </head>
+
+      <body>
+        <main class="receipt">
+          <header class="header">
+            <div>
+              <div class="brand">DARASA-AI</div>
+              <div class="school">${escapeReceiptHtml(schoolName)}</div>
+              <p class="muted">School fee payment receipt</p>
+            </div>
+
+            <div class="receipt-label">
+              <h1>PAYMENT RECEIPT</h1>
+              <p class="muted">
+                Receipt No: ${escapeReceiptHtml(receiptNumber)}
+              </p>
+              <p class="muted">
+                Issued: ${escapeReceiptHtml(formatDate(new Date().toISOString()))}
+              </p>
+            </div>
+          </header>
+
+          <div class="success">
+            Recorded payment · Status: ${escapeReceiptHtml(status)}
+          </div>
+
+          <section class="amount-box">
+            <div class="amount-label">Amount recorded</div>
+            <div class="amount">${escapeReceiptHtml(amount)}</div>
+          </section>
+
+          <h2 class="section-title">Student details</h2>
+
+          <table class="details">
+            <tr>
+              <td>Student name</td>
+              <td>${escapeReceiptHtml(studentName)}</td>
+            </tr>
+
+            <tr>
+              <td>Admission number</td>
+              <td>${escapeReceiptHtml(admissionNumber)}</td>
+            </tr>
+
+            ${
+              grade
+                ? `<tr><td>Grade</td><td>${escapeReceiptHtml(grade)}</td></tr>`
+                : ""
+            }
+
+            ${
+              classroom
+                ? `<tr><td>Classroom</td><td>${escapeReceiptHtml(classroom)}</td></tr>`
+                : ""
+            }
+          </table>
+
+          <h2 class="section-title">Payment details</h2>
+
+          <table class="details">
+            <tr>
+              <td>Payment date</td>
+              <td>${escapeReceiptHtml(formatDate(paymentDate))}</td>
+            </tr>
+
+            <tr>
+              <td>Payment method</td>
+              <td>${escapeReceiptHtml(paymentMethod)}</td>
+            </tr>
+
+            <tr>
+              <td>Transaction reference</td>
+              <td>${escapeReceiptHtml(reference || "Not provided")}</td>
+            </tr>
+
+            <tr>
+              <td>Payment status</td>
+              <td>${escapeReceiptHtml(status)}</td>
+            </tr>
+          </table>
+
+          <footer class="footer">
+            <p><strong>Thank you.</strong></p>
+
+            <p class="muted">
+              This receipt reflects the payment information recorded in DARASA-AI.
+              Please contact your school office if any details are incorrect.
+            </p>
+          </footer>
+        </main>
+
+        <div class="actions">
+          <button onclick="window.print()">
+            Print receipt / Save as PDF
+          </button>
+
+          <button class="secondary" onclick="window.close()">
+            Close
+          </button>
+        </div>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(receiptHtml);
+  printWindow.document.close();
+}
+
+function SectionHeader({ title, description, action }) {
   return (
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
@@ -177,10 +532,7 @@ function EmptyState({
   );
 }
 
-function ErrorState({
-  message,
-  onRetry,
-}) {
+function ErrorState({ message, onRetry }) {
   return (
     <div className="rounded-2xl border border-[#F0D8D5] bg-[#FFF8F7] px-6 py-10 text-center">
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#FCEAE7] text-[#B33A31]">
@@ -207,12 +559,7 @@ function ErrorState({
   );
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  description,
-}) {
+function StatCard({ icon: Icon, label, value, description }) {
   return (
     <div className="rounded-2xl border border-[#E4E8E2] bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
@@ -240,7 +587,7 @@ function StatCard({
 
 function StudentAIAssistant({ student, competencies, recommendations }) {
   const [message, setMessage] = useState("");
-  const [response, setResponse] = useState("");
+  const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -255,9 +602,7 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
 
     const trimmedMessage = message.trim();
 
-    if (!trimmedMessage || loading) {
-      return;
-    }
+    if (!trimmedMessage || loading) return;
 
     setLoading(true);
     setError("");
@@ -275,7 +620,7 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
       setError(
         requestError.response?.data?.message ||
           requestError.response?.data?.detail ||
-          "DARASA-AI could not process your question. Please try again.",
+          "DARASA-AI could not process your question. Please try again."
       );
     } finally {
       setLoading(false);
@@ -340,6 +685,7 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
               <p className="text-[10px] font-bold uppercase tracking-wide text-[#B9D9CA]">
                 You
               </p>
+
               <p className="mt-1 text-sm leading-6">
                 {response.message}
               </p>
@@ -355,7 +701,7 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
                   DARASA-AI
                 </p>
 
-                <p className="mt-1 text-sm leading-6 text-[#52635B]">
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#52635B]">
                   {response.response}
                 </p>
               </div>
@@ -411,12 +757,8 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
         </form>
 
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#9AA49F]">
-          <span>
-            {competencies.length} competency records available
-          </span>
-          <span>
-            {recommendations.length} personalised recommendations
-          </span>
+          <span>{competencies.length} competency records available</span>
+          <span>{recommendations.length} personalised recommendations</span>
         </div>
       </div>
     </div>
@@ -436,41 +778,22 @@ function StudentOverview({
 
   const masteryCounts = useMemo(
     () => ({
-      EE: competencies.filter(
-        (item) =>
-          item.mastery_level === "EE"
-      ).length,
-
-      ME: competencies.filter(
-        (item) =>
-          item.mastery_level === "ME"
-      ).length,
-
-      AE: competencies.filter(
-        (item) =>
-          item.mastery_level === "AE"
-      ).length,
-
-      BE: competencies.filter(
-        (item) =>
-          item.mastery_level === "BE"
-      ).length,
+      EE: competencies.filter((item) => item.mastery_level === "EE").length,
+      ME: competencies.filter((item) => item.mastery_level === "ME").length,
+      AE: competencies.filter((item) => item.mastery_level === "AE").length,
+      BE: competencies.filter((item) => item.mastery_level === "BE").length,
     }),
-    [competencies],
+    [competencies]
   );
 
   const masteryPercentage =
     total > 0
       ? Math.round(
-          ((masteryCounts.EE +
-            masteryCounts.ME) /
-            total) *
-            100
+          ((masteryCounts.EE + masteryCounts.ME) / total) * 100
         )
       : 0;
 
-  const recentAssessments =
-    competencies.slice(0, 5);
+  const recentAssessments = competencies.slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -482,18 +805,12 @@ function StudentOverview({
             </p>
 
             <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
-              Welcome back,{" "}
-              {student?.first_name ||
-                "Student"}
-              .
+              Welcome back, {student?.first_name || "Student"}.
             </h1>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[#D2E7DC]">
-              Track your CBC progress,
-              review assessments, follow
-              personalised recommendations,
-              and stay up to date with your
-              school.
+              Track your CBC progress, review assessments, follow personalised
+              recommendations, and stay up to date with your school.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -541,12 +858,7 @@ function StudentOverview({
           icon={GraduationCap}
           label="Learning areas"
           value={
-            new Set(
-              competencies.map(
-                (item) =>
-                  item.learning_area
-              )
-            ).size
+            new Set(competencies.map((item) => item.learning_area)).size
           }
           description="Areas with recorded assessments"
         />
@@ -554,9 +866,7 @@ function StudentOverview({
         <StatCard
           icon={Wallet}
           label="Fee account"
-          value={formatCurrency(
-            ledger?.balance || 0
-          )}
+          value={formatCurrency(ledger?.balance || 0)}
           description="Net recorded balance"
         />
 
@@ -571,134 +881,96 @@ function StudentOverview({
       <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
         <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
           <div className="border-b border-[#E9ECE7] px-5 py-4">
-            <h2 className="font-bold text-[#17382E]">
-              Learning progress
-            </h2>
-
+            <h2 className="font-bold text-[#17382E]">Learning progress</h2>
             <p className="mt-1 text-xs text-[#87938D]">
-              Your latest CBC competency
-              performance by learning area.
+              Your latest CBC competency performance by learning area.
             </p>
           </div>
 
           {competencies.length === 0 ? (
             <div className="px-6 py-12 text-center">
-              <BookOpenCheck
-                size={28}
-                className="mx-auto text-[#A0AAA5]"
-              />
-
+              <BookOpenCheck size={28} className="mx-auto text-[#A0AAA5]" />
               <p className="mt-3 text-sm font-semibold text-[#596861]">
-                No competency assessments
-                have been recorded yet.
+                No competency assessments have been recorded yet.
               </p>
             </div>
           ) : (
             <div className="grid gap-3 p-5 sm:grid-cols-2">
-              {Object.entries(
-                LEARNING_AREAS
-              ).map(
-                ([code, label]) => {
-                  const records =
-                    competencies.filter(
-                      (item) =>
-                        item.learning_area ===
-                        code
-                    );
+              {Object.entries(LEARNING_AREAS).map(([code, label]) => {
+                const records = competencies.filter(
+                  (item) => item.learning_area === code
+                );
 
-                  if (!records.length) {
-                    return null;
-                  }
+                if (!records.length) return null;
 
-                  const mastered =
-                    records.filter(
-                      (item) =>
-                        item.mastery_level ===
-                          "EE" ||
-                        item.mastery_level ===
-                          "ME"
-                    ).length;
+                const mastered = records.filter(
+                  (item) =>
+                    item.mastery_level === "EE" ||
+                    item.mastery_level === "ME"
+                ).length;
 
-                  const percentage =
-                    Math.round(
-                      (mastered /
-                        records.length) *
-                        100
-                    );
+                const percentage = Math.round(
+                  (mastered / records.length) * 100
+                );
 
-                  return (
-                    <div
-                      key={code}
-                      className="rounded-xl border border-[#E8ECE7] bg-[#FAFBF9] p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-wide text-[#8A9691]">
-                            {code}
-                          </p>
-
-                          <p className="mt-1 text-sm font-bold text-[#294A3F]">
-                            {label}
-                          </p>
-                        </div>
-
-                        <span className="text-sm font-extrabold text-[#0B5D43]">
-                          {percentage}%
-                        </span>
+                return (
+                  <div
+                    key={code}
+                    className="rounded-xl border border-[#E8ECE7] bg-[#FAFBF9] p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-[#8A9691]">
+                          {code}
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-[#294A3F]">
+                          {label}
+                        </p>
                       </div>
 
-                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5EAE5]">
-                        <div
-                          className="h-full rounded-full bg-[#0B5D43]"
-                          style={{
-                            width: `${percentage}%`,
-                          }}
-                        />
-                      </div>
-
-                      <p className="mt-2 text-[11px] text-[#89958F]">
-                        {records.length} assessment
-                        {records.length === 1
-                          ? ""
-                          : "s"}
-                      </p>
+                      <span className="text-sm font-extrabold text-[#0B5D43]">
+                        {percentage}%
+                      </span>
                     </div>
-                  );
-                }
-              )}
+
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5EAE5]">
+                      <div
+                        className="h-full rounded-full bg-[#0B5D43]"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+
+                    <p className="mt-2 text-[11px] text-[#89958F]">
+                      {records.length} assessment
+                      {records.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
         <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
           <div className="border-b border-[#E9ECE7] px-5 py-4">
-            <h2 className="font-bold text-[#17382E]">
-              Mastery overview
-            </h2>
+            <h2 className="font-bold text-[#17382E]">Mastery overview</h2>
           </div>
 
           <div className="space-y-3 p-5">
-            {Object.entries(
-              masteryCounts
-            ).map(([level, count]) => (
+            {Object.entries(masteryCounts).map(([level, count]) => (
               <div
                 key={level}
                 className="flex items-center justify-between rounded-xl bg-[#FAFBF9] px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-bold text-[#294A3F]">
-                    {level}
-                  </p>
-
+                  <p className="text-sm font-bold text-[#294A3F]">{level}</p>
                   <p className="text-[11px] text-[#89958F]">
                     {getMasteryLabel(level)}
                   </p>
                 </div>
 
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${getMasteryStyle(
-                    level
-                  )}`}
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${getMasteryStyle(level)}`}
                 >
                   {count}
                 </span>
@@ -710,16 +982,11 @@ function StudentOverview({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#E9ECE7] px-5 py-4">
-            <div>
-              <h2 className="font-bold text-[#17382E]">
-                Recent assessments
-              </h2>
-
-              <p className="mt-1 text-xs text-[#87938D]">
-                Your latest competency records.
-              </p>
-            </div>
+          <div className="border-b border-[#E9ECE7] px-5 py-4">
+            <h2 className="font-bold text-[#17382E]">Recent assessments</h2>
+            <p className="mt-1 text-xs text-[#87938D]">
+              Your latest competency records.
+            </p>
           </div>
 
           {recentAssessments.length === 0 ? (
@@ -728,43 +995,32 @@ function StudentOverview({
             </p>
           ) : (
             <div className="divide-y divide-[#EEF0EC]">
-              {recentAssessments.map(
-                (item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-4 px-5 py-4"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-[#294A3F]">
-                        {getLearningAreaLabel(
-                          item.learning_area
-                        )}
-                      </p>
-
-                      <p className="mt-1 truncate text-xs text-[#89958F]">
-                        {item.strand ||
-                          "Competency assessment"}
-                      </p>
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${getMasteryStyle(
-                          item.mastery_level
-                        )}`}
-                      >
-                        {item.mastery_level}
-                      </span>
-
-                      <p className="mt-2 text-[10px] text-[#9AA49F]">
-                        {formatDate(
-                          item.assessed_on
-                        )}
-                      </p>
-                    </div>
+              {recentAssessments.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-4 px-5 py-4"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-[#294A3F]">
+                      {getLearningAreaLabel(item.learning_area)}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-[#89958F]">
+                      {item.strand || "Competency assessment"}
+                    </p>
                   </div>
-                )
-              )}
+
+                  <div className="shrink-0 text-right">
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${getMasteryStyle(item.mastery_level)}`}
+                    >
+                      {item.mastery_level}
+                    </span>
+                    <p className="mt-2 text-[10px] text-[#9AA49F]">
+                      {formatDate(item.assessed_on)}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -774,65 +1030,44 @@ function StudentOverview({
             <h2 className="font-bold text-[#17382E]">
               Personalised recommendations
             </h2>
-
             <p className="mt-1 text-xs text-[#87938D]">
-              Suggestions generated from your
-              learning history.
+              Suggestions generated from your learning history.
             </p>
           </div>
 
           {recommendations.length === 0 ? (
             <div className="px-5 py-10 text-center">
-              <GraduationCap
-                size={28}
-                className="mx-auto text-[#A0AAA5]"
-              />
-
+              <GraduationCap size={28} className="mx-auto text-[#A0AAA5]" />
               <p className="mt-3 text-sm text-[#7A8982]">
-                No personalised
-                recommendations are available
-                yet.
+                No personalised recommendations are available yet.
               </p>
             </div>
           ) : (
             <div className="divide-y divide-[#EEF0EC]">
-              {recommendations
-                .slice(0, 4)
-                .map(
-                  (
-                    recommendation,
-                    index
-                  ) => (
-                    <div
-                      key={
-                        recommendation.id ||
-                        index
-                      }
-                      className="flex gap-3 px-5 py-4"
-                    >
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#EAF3EE] text-[#0B5D43]">
-                        <ArrowRight
-                          size={15}
-                        />
-                      </div>
+              {recommendations.slice(0, 4).map((recommendation, index) => (
+                <div
+                  key={recommendation.id || index}
+                  className="flex gap-3 px-5 py-4"
+                >
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#EAF3EE] text-[#0B5D43]">
+                    <ArrowRight size={15} />
+                  </div>
 
-                      <div>
-                        <p className="text-sm font-bold text-[#294A3F]">
-                          {recommendation.title ||
-                            recommendation.learning_area ||
-                            "Learning recommendation"}
-                        </p>
-
-                        <p className="mt-1 text-xs leading-5 text-[#7A8982]">
-                          {recommendation.description ||
-                            recommendation.reason ||
-                            recommendation.message ||
-                            "Continue practising this learning area."}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                )}
+                  <div>
+                    <p className="text-sm font-bold text-[#294A3F]">
+                      {recommendation.title ||
+                        recommendation.learning_area ||
+                        "Learning recommendation"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[#7A8982]">
+                      {recommendation.description ||
+                        recommendation.reason ||
+                        recommendation.message ||
+                        "Continue practising this learning area."}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -841,9 +1076,7 @@ function StudentOverview({
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
           <div className="border-b border-[#E9ECE7] px-5 py-4">
-            <h2 className="font-bold text-[#17382E]">
-              Fee activity
-            </h2>
+            <h2 className="font-bold text-[#17382E]">Fee activity</h2>
           </div>
 
           {payments.length === 0 ? (
@@ -852,44 +1085,34 @@ function StudentOverview({
             </p>
           ) : (
             <div className="divide-y divide-[#EEF0EC]">
-              {payments
-                .slice(0, 4)
-                .map((payment) => (
-                  <div
-                    key={payment.id}
-                    className="flex items-center justify-between gap-4 px-5 py-4"
-                  >
-                    <div>
-                      <p className="text-sm font-bold text-[#294A3F]">
-                        {payment.transaction_id ||
-                          payment.mpesa_receipt_number ||
-                          "Fee payment"}
-                      </p>
-
-                      <p className="mt-1 text-xs text-[#89958F]">
-                        {formatDate(
-                          payment.paid_at ||
-                            payment.created_at
-                        )}
-                      </p>
-                    </div>
-
-                    <p className="font-bold text-[#0B5D43]">
-                      {formatCurrency(
-                        payment.amount
-                      )}
+              {payments.slice(0, 4).map((payment) => (
+                <div
+                  key={payment.id}
+                  className="flex items-center justify-between gap-4 px-5 py-4"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-[#294A3F]">
+                      {payment.transaction_id ||
+                        payment.mpesa_receipt_number ||
+                        "Fee payment"}
+                    </p>
+                    <p className="mt-1 text-xs text-[#89958F]">
+                      {formatDate(payment.paid_at || payment.created_at)}
                     </p>
                   </div>
-                ))}
+
+                  <p className="font-bold text-[#0B5D43]">
+                    {formatCurrency(payment.amount)}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
         <div className="rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
           <div className="border-b border-[#E9ECE7] px-5 py-4">
-            <h2 className="font-bold text-[#17382E]">
-              Notifications
-            </h2>
+            <h2 className="font-bold text-[#17382E]">Notifications</h2>
           </div>
 
           {notifications.length === 0 ? (
@@ -898,31 +1121,22 @@ function StudentOverview({
             </p>
           ) : (
             <div className="divide-y divide-[#EEF0EC]">
-              {notifications
-                .slice(0, 4)
-                .map((notification) => (
-                  <div
-                    key={notification.id}
-                    className="flex gap-3 px-5 py-4"
-                  >
-                    <Bell
-                      size={17}
-                      className="mt-0.5 shrink-0 text-[#0B5D43]"
-                    />
-
-                    <div>
-                      <p className="text-sm font-bold text-[#294A3F]">
-                        {notification.subject ||
-                          "School notification"}
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-[#7A8982]">
-                        {notification.message ||
-                          "You have a new notification."}
-                      </p>
-                    </div>
+              {notifications.slice(0, 4).map((notification) => (
+                <div
+                  key={notification.id}
+                  className="flex gap-3 px-5 py-4"
+                >
+                  <Bell size={17} className="mt-0.5 shrink-0 text-[#0B5D43]" />
+                  <div>
+                    <p className="text-sm font-bold text-[#294A3F]">
+                      {notification.subject || "School notification"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[#7A8982]">
+                      {notification.message || "You have a new notification."}
+                    </p>
                   </div>
-                ))}
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -938,25 +1152,18 @@ function StudentOverview({
             <h2 className="font-bold text-[#17382E]">
               Your adaptive learning profile
             </h2>
-
             <p className="mt-1 text-sm leading-6 text-[#6F8078]">
-              Insights generated from your
-              competency history.
+              Insights generated from your competency history.
             </p>
 
             <div className="mt-4 flex flex-wrap gap-3">
               <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#456057]">
-                Intervention count{" "}
-                {adaptiveProfile?.intervention_count ||
-                  0}
+                Intervention count {adaptiveProfile?.intervention_count || 0}
               </span>
 
               {adaptiveProfile?.overall_mastery && (
                 <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#456057]">
-                  Overall mastery{" "}
-                  {
-                    adaptiveProfile.overall_mastery
-                  }
+                  Overall mastery {adaptiveProfile.overall_mastery}
                 </span>
               )}
             </div>
@@ -967,43 +1174,20 @@ function StudentOverview({
   );
 }
 
-function StudentProgress({
-  competencies,
-}) {
+function StudentProgress({ competencies }) {
   const total = competencies.length;
 
   const masteryCounts = {
-    EE: competencies.filter(
-      (item) =>
-        item.mastery_level === "EE"
-    ).length,
-
-    ME: competencies.filter(
-      (item) =>
-        item.mastery_level === "ME"
-    ).length,
-
-    AE: competencies.filter(
-      (item) =>
-        item.mastery_level === "AE"
-    ).length,
-
-    BE: competencies.filter(
-      (item) =>
-        item.mastery_level === "BE"
-    ).length,
+    EE: competencies.filter((item) => item.mastery_level === "EE").length,
+    ME: competencies.filter((item) => item.mastery_level === "ME").length,
+    AE: competencies.filter((item) => item.mastery_level === "AE").length,
+    BE: competencies.filter((item) => item.mastery_level === "BE").length,
   };
 
-  const mastered =
-    masteryCounts.EE +
-    masteryCounts.ME;
+  const mastered = masteryCounts.EE + masteryCounts.ME;
 
   const masteryPercentage =
-    total > 0
-      ? Math.round(
-          (mastered / total) * 100
-        )
-      : 0;
+    total > 0 ? Math.round((mastered / total) * 100) : 0;
 
   return (
     <div>
@@ -1019,34 +1203,25 @@ function StudentProgress({
           value={`${masteryPercentage}%`}
           description="EE + ME assessments"
         />
-
         <StatCard
           icon={BookOpenCheck}
           label="Assessments"
           value={total}
           description="Recorded competency records"
         />
-
         <StatCard
           icon={GraduationCap}
           label="Developing areas"
-          value={
-            masteryCounts.AE +
-            masteryCounts.BE
-          }
+          value={masteryCounts.AE + masteryCounts.BE}
           description="Assessments needing attention"
         />
       </div>
 
       <div className="mt-6 rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
         <div className="border-b border-[#E9ECE7] px-5 py-4">
-          <h2 className="font-bold text-[#17382E]">
-            Learning areas
-          </h2>
-
+          <h2 className="font-bold text-[#17382E]">Learning areas</h2>
           <p className="mt-1 text-xs text-[#87938D]">
-            Your competency records by CBC
-            learning area.
+            Your competency records by CBC learning area.
           </p>
         </div>
 
@@ -1059,33 +1234,20 @@ function StudentProgress({
           </div>
         ) : (
           <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-            {Object.entries(
-              LEARNING_AREAS
-            ).map(([code, label]) => {
-              const records =
-                competencies.filter(
-                  (item) =>
-                    item.learning_area ===
-                    code
-                );
+            {Object.entries(LEARNING_AREAS).map(([code, label]) => {
+              const records = competencies.filter(
+                (item) => item.learning_area === code
+              );
 
-              const mastered =
-                records.filter(
-                  (item) =>
-                    item.mastery_level ===
-                      "EE" ||
-                    item.mastery_level ===
-                      "ME"
-                ).length;
+              const masteredRecords = records.filter(
+                (item) =>
+                  item.mastery_level === "EE" ||
+                  item.mastery_level === "ME"
+              ).length;
 
-              const percentage =
-                records.length
-                  ? Math.round(
-                      (mastered /
-                        records.length) *
-                        100
-                    )
-                  : 0;
+              const percentage = records.length
+                ? Math.round((masteredRecords / records.length) * 100)
+                : 0;
 
               return (
                 <div
@@ -1095,16 +1257,12 @@ function StudentProgress({
                   <p className="text-xs font-bold uppercase tracking-wide text-[#8A9691]">
                     {code}
                   </p>
-
-                  <p className="mt-1 font-bold text-[#294A3F]">
-                    {label}
-                  </p>
+                  <p className="mt-1 font-bold text-[#294A3F]">{label}</p>
 
                   <div className="mt-4 flex items-end justify-between">
                     <span className="text-2xl font-extrabold text-[#0B5D43]">
                       {percentage}%
                     </span>
-
                     <span className="text-xs text-[#89958F]">
                       {records.length} records
                     </span>
@@ -1113,9 +1271,7 @@ function StudentProgress({
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E5EAE5]">
                     <div
                       className="h-full rounded-full bg-[#0B5D43]"
-                      style={{
-                        width: `${percentage}%`,
-                      }}
+                      style={{ width: `${percentage}%` }}
                     />
                   </div>
                 </div>
@@ -1127,28 +1283,21 @@ function StudentProgress({
 
       <div className="mt-6 rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
         <div className="border-b border-[#E9ECE7] px-5 py-4">
-          <h2 className="font-bold text-[#17382E]">
-            Mastery breakdown
-          </h2>
+          <h2 className="font-bold text-[#17382E]">Mastery breakdown</h2>
         </div>
 
         <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
-          {Object.entries(
-            masteryCounts
-          ).map(([level, count]) => (
+          {Object.entries(masteryCounts).map(([level, count]) => (
             <div
               key={level}
               className="rounded-xl border border-[#E8ECE7] p-4"
             >
               <div className="flex items-center justify-between">
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${getMasteryStyle(
-                    level
-                  )}`}
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${getMasteryStyle(level)}`}
                 >
                   {level}
                 </span>
-
                 <span className="text-2xl font-extrabold text-[#17382E]">
                   {count}
                 </span>
@@ -1165,9 +1314,7 @@ function StudentProgress({
   );
 }
 
-function StudentAssessments({
-  competencies,
-}) {
+function StudentAssessments({ competencies }) {
   return (
     <div>
       <SectionHeader
@@ -1189,15 +1336,12 @@ function StudentAssessments({
                   <th className="px-5 py-4 text-[11px] font-bold uppercase tracking-wide text-[#87938D]">
                     Learning area
                   </th>
-
                   <th className="px-5 py-4 text-[11px] font-bold uppercase tracking-wide text-[#87938D]">
                     Strand
                   </th>
-
                   <th className="px-5 py-4 text-[11px] font-bold uppercase tracking-wide text-[#87938D]">
                     Mastery
                   </th>
-
                   <th className="px-5 py-4 text-[11px] font-bold uppercase tracking-wide text-[#87938D]">
                     Date
                   </th>
@@ -1205,48 +1349,37 @@ function StudentAssessments({
               </thead>
 
               <tbody>
-                {competencies.map(
-                  (item) => (
-                    <tr
-                      key={item.id}
-                      className="border-b border-[#EEF0EC] last:border-0"
-                    >
-                      <td className="px-5 py-4">
-                        <p className="text-sm font-bold text-[#294A3F]">
-                          {getLearningAreaLabel(
-                            item.learning_area
-                          )}
-                        </p>
+                {competencies.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-b border-[#EEF0EC] last:border-0"
+                  >
+                    <td className="px-5 py-4">
+                      <p className="text-sm font-bold text-[#294A3F]">
+                        {getLearningAreaLabel(item.learning_area)}
+                      </p>
+                      <p className="mt-1 text-xs text-[#89958F]">
+                        {item.sub_strand || ""}
+                      </p>
+                    </td>
 
-                        <p className="mt-1 text-xs text-[#89958F]">
-                          {item.sub_strand ||
-                            ""}
-                        </p>
-                      </td>
+                    <td className="px-5 py-4 text-sm text-[#68766F]">
+                      {item.strand || "—"}
+                    </td>
 
-                      <td className="px-5 py-4 text-sm text-[#68766F]">
-                        {item.strand || "—"}
-                      </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-bold ${getMasteryStyle(item.mastery_level)}`}
+                      >
+                        {item.mastery_level || "—"}
+                      </span>
+                    </td>
 
-                      <td className="px-5 py-4">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${getMasteryStyle(
-                            item.mastery_level
-                          )}`}
-                        >
-                          {item.mastery_level ||
-                            "—"}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4 text-sm text-[#68766F]">
-                        {formatDate(
-                          item.assessed_on
-                        )}
-                      </td>
-                    </tr>
-                  )
-                )}
+                    <td className="px-5 py-4 text-sm text-[#68766F]">
+                      {formatDate(item.assessed_on)}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -1256,9 +1389,7 @@ function StudentAssessments({
   );
 }
 
-function StudentRecommendations({
-  recommendations,
-}) {
+function StudentRecommendations({ recommendations }) {
   return (
     <div>
       <SectionHeader
@@ -1274,67 +1405,52 @@ function StudentRecommendations({
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {recommendations.map(
-            (
-              recommendation,
-              index
-            ) => (
-              <div
-                key={
-                  recommendation.id ||
-                  index
-                }
-                className="rounded-2xl border border-[#E4E8E2] bg-white p-5 shadow-sm"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
-                    <GraduationCap
-                      size={20}
-                    />
-                  </div>
+          {recommendations.map((recommendation, index) => (
+            <div
+              key={recommendation.id || index}
+              className="rounded-2xl border border-[#E4E8E2] bg-white p-5 shadow-sm"
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
+                  <GraduationCap size={20} />
+                </div>
 
-                  <div>
-                    <h3 className="font-bold text-[#17382E]">
-                      {recommendation.title ||
-                        recommendation.learning_area ||
-                        "Learning recommendation"}
-                    </h3>
+                <div>
+                  <h3 className="font-bold text-[#17382E]">
+                    {recommendation.title ||
+                      recommendation.learning_area ||
+                      "Learning recommendation"}
+                  </h3>
 
-                    <p className="mt-2 text-sm leading-6 text-[#718078]">
-                      {recommendation.description ||
-                        recommendation.reason ||
-                        recommendation.message ||
-                        "Continue practising this learning area and review your latest assessment feedback."}
-                    </p>
-                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[#718078]">
+                    {recommendation.description ||
+                      recommendation.reason ||
+                      recommendation.message ||
+                      "Continue practising this learning area and review your latest assessment feedback."}
+                  </p>
                 </div>
               </div>
-            )
-          )}
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function StudentFees({
-  ledger,
-  payments,
-}) {
+function StudentFees({ ledger, payments, student }) {
   return (
     <div>
       <SectionHeader
         title="Fees"
-        description="Review your recorded school fee activity."
+        description="Review your recorded school fee activity and print receipts for your payments."
       />
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           icon={Wallet}
           label="Net balance"
-          value={formatCurrency(
-            ledger?.balance || 0
-          )}
+          value={formatCurrency(ledger?.balance || 0)}
           description="Recorded account balance"
         />
 
@@ -1356,34 +1472,36 @@ function StudentFees({
       <div className="mt-6 overflow-hidden rounded-2xl border border-[#E4E8E2] bg-white shadow-sm">
         <div className="border-b border-[#E9ECE7] px-5 py-4">
           <h2 className="font-bold text-[#17382E]">
-            Fee activity
+            Fee activity and receipts
           </h2>
+
+          <p className="mt-1 text-xs text-[#87938D]">
+            Print a receipt for any payment recorded on your account.
+          </p>
         </div>
 
         {!payments.length ? (
           <div className="px-6 py-12 text-center text-sm text-[#7A8982]">
-            No fee payment records have been
-            recorded.
+            No fee payment records have been recorded.
           </div>
         ) : (
           <div className="divide-y divide-[#EEF0EC]">
             {payments.map((payment) => (
               <div
                 key={payment.id}
-                className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div>
-                  <p className="text-sm font-bold text-[#294A3F]">
+                <div className="min-w-0">
+                  <p className="break-all text-sm font-bold text-[#294A3F]">
                     {payment.transaction_id ||
                       payment.mpesa_receipt_number ||
-                      "Fee payment"}
+                      payment.receipt_number ||
+                      `Payment #${payment.id}`}
                   </p>
 
                   <p className="mt-1 text-xs text-[#89958F]">
-                    {formatDate(
-                      payment.paid_at ||
-                        payment.created_at
-                    )}
+                    Payment date:{" "}
+                    {formatDate(payment.paid_at || payment.created_at)}
                   </p>
 
                   {payment.status && (
@@ -1393,11 +1511,20 @@ function StudentFees({
                   )}
                 </div>
 
-                <p className="font-bold text-[#0B5D43]">
-                  {formatCurrency(
-                    payment.amount
-                  )}
-                </p>
+                <div className="flex flex-col gap-3 sm:items-end">
+                  <p className="text-lg font-extrabold text-[#0B5D43]">
+                    {formatCurrency(payment.amount)}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => printFeeReceipt(payment, student)}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B5D43] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#084936] focus:outline-none focus:ring-2 focus:ring-[#0B5D43] focus:ring-offset-2"
+                  >
+                    <span aria-hidden="true">⎙</span>
+                    Print Receipt
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -1407,9 +1534,7 @@ function StudentFees({
   );
 }
 
-function StudentNotifications({
-  notifications,
-}) {
+function StudentNotifications({ notifications }) {
   return (
     <div>
       <SectionHeader
@@ -1425,174 +1550,115 @@ function StudentNotifications({
         />
       ) : (
         <div className="space-y-3">
-          {notifications.map(
-            (notification) => (
-              <div
-                key={notification.id}
-                className="rounded-2xl border border-[#E4E8E2] bg-white p-5 shadow-sm"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
-                    <Bell size={18} />
-                  </div>
+          {notifications.map((notification) => (
+            <div
+              key={notification.id}
+              className="rounded-2xl border border-[#E4E8E2] bg-white p-5 shadow-sm"
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
+                  <Bell size={18} />
+                </div>
 
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-[#17382E]">
-                      {notification.subject ||
-                        "School notification"}
-                    </h3>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-[#17382E]">
+                    {notification.subject || "School notification"}
+                  </h3>
 
-                    <p className="mt-1 text-sm leading-6 text-[#718078]">
-                      {notification.message ||
-                        "You have a new notification."}
-                    </p>
+                  <p className="mt-1 text-sm leading-6 text-[#718078]">
+                    {notification.message || "You have a new notification."}
+                  </p>
 
-                    <p className="mt-2 text-[11px] text-[#98A39E]">
-                      {formatDate(
-                        notification.sent_at ||
-                          notification.created_at
-                      )}
-                    </p>
-                  </div>
+                  <p className="mt-2 text-[11px] text-[#98A39E]">
+                    {formatDate(
+                      notification.sent_at || notification.created_at
+                    )}
+                  </p>
                 </div>
               </div>
-            )
-          )}
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function StudentPortal({
-  section = "overview",
-}) {
-  const [student, setStudent] =
-    useState(null);
+function StudentPortal({ section = "overview" }) {
+  const [student, setStudent] = useState(null);
+  const [competencies, setCompetencies] = useState([]);
+  const [ledger, setLedger] = useState(null);
+  const [payments, setPayments] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+  const [adaptiveProfile, setAdaptiveProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [competencies, setCompetencies] =
-    useState([]);
+  const loadWorkspace = useCallback(async () => {
+    setLoading(true);
+    setError("");
 
-  const [ledger, setLedger] =
-    useState(null);
+    try {
+      const [
+        studentResponse,
+        competenciesResponse,
+        ledgerResponse,
+        paymentsResponse,
+        notificationsResponse,
+      ] = await Promise.all([
+        api.get("/students/me/"),
+        api.get("/competencies/"),
+        api.get("/fee-ledger/summary/"),
+        api.get("/fee-payments/"),
+        api.get("/notifications/"),
+      ]);
 
-  const [payments, setPayments] =
-    useState([]);
+      const studentData = studentResponse.data;
+      const competencyData = getList(competenciesResponse.data);
+      const paymentData = getList(paymentsResponse.data);
+      const notificationData = getList(notificationsResponse.data);
 
-  const [notifications, setNotifications] =
-    useState([]);
+      setStudent(studentData);
+      setCompetencies(competencyData);
+      setLedger(ledgerResponse.data);
+      setPayments(paymentData);
+      setNotifications(notificationData);
 
-  const [recommendations, setRecommendations] =
-    useState([]);
-
-  const [adaptiveProfile, setAdaptiveProfile] =
-    useState(null);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
-
-  const loadWorkspace =
-    useCallback(async () => {
-      setLoading(true);
-      setError("");
-
-      try {
+      if (studentData?.id) {
         const [
-          studentResponse,
-          competenciesResponse,
-          ledgerResponse,
-          paymentsResponse,
-          notificationsResponse,
-        ] = await Promise.all([
-          api.get("/students/me/"),
-          api.get("/competencies/"),
-          api.get("/fee-ledger/summary/"),
-          api.get("/fee-payments/"),
-          api.get("/notifications/"),
+          adaptiveResponse,
+          recommendationsResponse,
+        ] = await Promise.allSettled([
+          api.get(
+            `/students/${studentData.id}/adaptive-profile/`
+          ),
+          api.get(
+            `/students/${studentData.id}/recommendations/`
+          ),
         ]);
 
-        const studentData =
-          studentResponse.data;
-
-        const competencyData =
-          getList(
-            competenciesResponse.data
-          );
-
-        const paymentData =
-          getList(
-            paymentsResponse.data
-          );
-
-        const notificationData =
-          getList(
-            notificationsResponse.data
-          );
-
-        setStudent(studentData);
-        setCompetencies(
-          competencyData
-        );
-        setLedger(
-          ledgerResponse.data
-        );
-        setPayments(paymentData);
-        setNotifications(
-          notificationData
-        );
-
-        if (studentData?.id) {
-          const [
-            adaptiveResponse,
-            recommendationsResponse,
-          ] = await Promise.allSettled([
-            api.get(
-              `/students/${studentData.id}/adaptive-profile/`
-            ),
-            api.get(
-              `/students/${studentData.id}/recommendations/`
-            ),
-          ]);
-
-          if (
-            adaptiveResponse.status ===
-            "fulfilled"
-          ) {
-            setAdaptiveProfile(
-              adaptiveResponse.value.data
-            );
-          }
-
-          if (
-            recommendationsResponse.status ===
-            "fulfilled"
-          ) {
-            setRecommendations(
-              getList(
-                recommendationsResponse
-                  .value.data
-              )
-            );
-          }
+        if (adaptiveResponse.status === "fulfilled") {
+          setAdaptiveProfile(adaptiveResponse.value.data);
         }
-      } catch (requestError) {
-        console.error(
-          "Student workspace error:",
-          requestError
-        );
 
-        setError(
-          requestError.response?.data
-            ?.detail ||
-            "We could not load your student workspace. Please try again."
-        );
-      } finally {
-        setLoading(false);
+        if (recommendationsResponse.status === "fulfilled") {
+          setRecommendations(
+            getList(recommendationsResponse.value.data)
+          );
+        }
       }
-    }, []);
+    } catch (requestError) {
+      console.error("Student workspace error:", requestError);
+
+      setError(
+        requestError.response?.data?.detail ||
+          "We could not load your student workspace. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadWorkspace();
@@ -1602,11 +1668,7 @@ function StudentPortal({
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center">
-          <Loader2
-            size={30}
-            className="animate-spin text-[#0B5D43]"
-          />
-
+          <Loader2 size={30} className="animate-spin text-[#0B5D43]" />
           <p className="mt-4 text-sm font-medium text-[#718078]">
             Loading your learning workspace...
           </p>
@@ -1616,37 +1678,20 @@ function StudentPortal({
   }
 
   if (error && !student) {
-    return (
-      <ErrorState
-        message={error}
-        onRetry={loadWorkspace}
-      />
-    );
+    return <ErrorState message={error} onRetry={loadWorkspace} />;
   }
 
   if (section === "progress") {
-    return (
-      <StudentProgress
-        competencies={competencies}
-      />
-    );
+    return <StudentProgress competencies={competencies} />;
   }
 
   if (section === "assessments") {
-    return (
-      <StudentAssessments
-        competencies={competencies}
-      />
-    );
+    return <StudentAssessments competencies={competencies} />;
   }
 
   if (section === "recommendations") {
     return (
-      <StudentRecommendations
-        recommendations={
-          recommendations
-        }
-      />
+      <StudentRecommendations recommendations={recommendations} />
     );
   }
 
@@ -1655,18 +1700,13 @@ function StudentPortal({
       <StudentFees
         ledger={ledger}
         payments={payments}
+        student={student}
       />
     );
   }
 
   if (section === "notifications") {
-    return (
-      <StudentNotifications
-        notifications={
-          notifications
-        }
-      />
-    );
+    return <StudentNotifications notifications={notifications} />;
   }
 
   return (
@@ -1701,17 +1741,11 @@ function StudentPortal({
       <StudentOverview
         student={student}
         competencies={competencies}
-        recommendations={
-          recommendations
-        }
+        recommendations={recommendations}
         ledger={ledger}
         payments={payments}
-        notifications={
-          notifications
-        }
-        adaptiveProfile={
-          adaptiveProfile
-        }
+        notifications={notifications}
+        adaptiveProfile={adaptiveProfile}
       />
     </div>
   );
