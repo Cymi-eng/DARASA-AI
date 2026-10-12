@@ -143,13 +143,8 @@ function printFeeReceipt(payment, student) {
   const admissionNumber =
     student?.admission_number || "Not available";
 
-  const schoolName =
-    student?.school_name ||
-    student?.school?.name ||
-    payment?.school_name ||
-    payment?.school?.name ||
-    "School name not provided";
-
+  const schoolName = "Adelaide Group of Schools";
+  
   const reference =
     payment?.mpesa_receipt_number ||
     payment?.transaction_id ||
