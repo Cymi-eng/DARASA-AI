@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -14,9 +15,33 @@ import {
 
 import { useAuth } from "../context/AuthContext.jsx";
 
+// Education images for the fading login slideshow.
+const loginSlideshowImages = [
+  "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1800&q=85",
+  "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?auto=format&fit=crop&w=1800&q=85",
+  "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1800&q=85",
+];
+
+function getRoleRedirect(role) {
+  switch (role) {
+    case "TEACHER":
+      return "/teacher-portal";
+    case "BURSAR":
+      return "/finance";
+    case "STUDENT":
+      return "/student-portal";
+    case "PARENT":
+      return "/parent-portal";
+    case "PLATFORM_ADMIN":
+      return "/platform-admin";
+    default:
+      return "/dashboard";
+  }
+}
+
 function Login() {
-  const { login } = useAuth();
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -25,28 +50,19 @@ function Login() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const getRoleRedirect = (role) => {
-    switch (role) {
-      case "TEACHER":
-        return "/teacher-portal";
+  // Slideshow state.
+  const [activeSlide, setActiveSlide] = useState(0);
 
-      case "BURSAR":
-        return "/finance";
+  // Fade to the next education image every six seconds.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setActiveSlide(
+        (current) => (current + 1) % loginSlideshowImages.length
+      );
+    }, 6000);
 
-      case "STUDENT":
-        return "/student-portal";
-
-      case "PARENT":
-        return "/parent-portal";
-
-      case "PLATFORM_ADMIN":
-        return "/platform-admin";
-
-      case "ADMIN":
-      default:
-        return "/dashboard";
-    }
-  };
+    return () => window.clearInterval(interval);
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -55,15 +71,29 @@ function Login() {
     setIsSubmitting(true);
 
     try {
-      const user = await login(username, password);
-
-      navigate(getRoleRedirect(user.role), {
-        replace: true,
+      const user = await login({
+        username: username.trim(),
+        password,
+        rememberMe,
       });
-    } catch (requestError) {
+
+      const role =
+        user?.role ||
+        user?.profile?.role ||
+        user?.user?.role ||
+        "";
+
+      navigate(getRoleRedirect(role), { replace: true });
+    } catch (err) {
+      const responseMessage =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.response?.data?.non_field_errors?.[0] ||
+        err?.message;
+
       setError(
-        requestError.response?.data?.detail ||
-          "Unable to sign in. Please verify your username and password."
+        responseMessage ||
+          "Login failed. Please check your credentials and try again."
       );
     } finally {
       setIsSubmitting(false);
@@ -71,401 +101,294 @@ function Login() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f8f7f2]">
-      <div className="flex min-h-screen flex-col lg:flex-row">
+    <div className="min-h-screen bg-white lg:flex">
+      {/* ======================================================
+          LEFT PANEL: PERMANENT BACKGROUND + FADING SLIDESHOW
+      ======================================================= */}
+      <section className="relative hidden min-h-screen overflow-hidden lg:block lg:w-[56%]">
+        {/* Permanent classroom background */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "url('https://mogotiolittlefriends.sc.ke/assets/images/school/Class_2.jpg')",
+          }}
+        />
 
-        {/* =========================================================
-            LEFT PANEL
-        ========================================================== */}
-        <section className="relative hidden min-h-screen overflow-hidden lg:block lg:w-[56%]">
-
-          {/* Classroom image */}
+        {/* Automatically fading education images */}
+        {loginSlideshowImages.map((image, index) => (
           <div
-            className="absolute inset-0 bg-cover bg-center"
+            key={image}
+            aria-hidden="true"
+            className="absolute inset-0 bg-cover bg-center transition-opacity duration-[1500ms] ease-in-out"
             style={{
-              backgroundImage:
-                "url('https://mogotiolittlefriends.sc.ke/assets/images/school/Class_2.jpg')",
+              backgroundImage: `url("${image}")`,
+              opacity: activeSlide === index ? 0.48 : 0,
             }}
           />
+        ))}
 
-          {/* Main green image overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#07382a]/45 via-[#07382a]/35 to-[#03251b]/95" />
+        {/* Green overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/90 via-emerald-900/75 to-green-950/85" />
 
-          {/* Bottom dark fade */}
-          <div className="absolute inset-x-0 bottom-0 h-[58%] bg-gradient-to-t from-[#03251b] via-[#03251b]/85 to-transparent" />
+        {/* Gold and green decorative overlays */}
+        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-yellow-400/15 blur-3xl" />
+        <div className="absolute -bottom-40 -right-20 h-[30rem] w-[30rem] rounded-full bg-emerald-400/20 blur-3xl" />
 
-          {/* Subtle left-to-right fade */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#03251b]/25 via-transparent to-[#03251b]/10" />
+        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-white/10 to-transparent" />
 
-          {/* Decorative green/gold curves */}
-          <div className="absolute -bottom-32 -left-20 h-72 w-[85%] rotate-[7deg] rounded-[50%] border-[28px] border-[#1d6b48]/80" />
-
-          <div className="absolute -bottom-40 left-[-8%] h-64 w-[82%] rotate-[7deg] rounded-[50%] border-[10px] border-[#efbd43]/95" />
-
-          {/* Diagonal white transition */}
-          <div
-            className="absolute right-[-2px] top-0 z-20 h-full w-[145px] bg-[#f8f7f2]"
-            style={{
-              clipPath:
-                "polygon(100% 0, 100% 100%, 0 100%, 68% 50%)",
-            }}
-          />
-
-          {/* Left content */}
-          <div className="relative z-10 flex min-h-screen flex-col px-10 py-10 xl:px-[4.5rem] xl:py-12">
-
-            {/* Logo */}
-            <div className="flex items-center gap-4">
-              <div className="flex h-[62px] w-[62px] items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm">
-                <GraduationCap size={38} strokeWidth={1.8} />
-              </div>
-
-              <div>
-                <h1 className="text-[2.7rem] font-bold leading-none tracking-tight text-white">
-                  Darasa-AI
-                </h1>
-
-                <p className="mt-2 text-sm font-medium text-white/80">
-                  Adaptive Learning
-                  <span className="mx-2">|</span>
-                  Continuous Assessment
-                  <span className="mx-2">|</span>
-                  Better Futures
-                </p>
-              </div>
+        {/* Left panel content */}
+        <div className="relative z-10 flex min-h-screen flex-col justify-between p-10 xl:p-14">
+          {/* Brand */}
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-400 text-emerald-950 shadow-xl shadow-black/20">
+              <BookOpenCheck size={30} strokeWidth={2.4} />
             </div>
 
-            {/* Hero */}
-            <div className="mt-auto max-w-[760px] pb-24 xl:pb-28">
-
-              <p className="mb-5 text-[15px] font-semibold uppercase tracking-[0.22em] text-[#efc34d]">
-                Empowering Kenya's CBC Journey
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight text-white">
+                DARASA<span className="text-yellow-400">-AI</span>
+              </h1>
+              <p className="mt-1 text-sm font-medium tracking-wide text-emerald-100">
+                Smart Learning. Better Outcomes.
               </p>
+            </div>
+          </div>
 
-              <h2 className="text-[3.3rem] font-bold leading-[1.08] tracking-tight text-white xl:text-[4rem]">
-                Every Child Learns.
-                <br />
-                Every{" "}
-                <span className="text-[#f1c54c]">
-                  Competency
-                </span>{" "}
-                Counts.
-              </h2>
+          {/* Hero content */}
+          <div className="max-w-2xl py-12">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-yellow-300 backdrop-blur-sm">
+              <GraduationCap size={18} />
+              <span>Built for CBC Education</span>
+            </div>
 
-              <p className="mt-6 max-w-[690px] text-[17px] leading-8 text-white/90">
-                Darasa-AI is Kenya's adaptive learning platform, built for
-                CBC education. We support schools with personalized learning,
-                continuous assessment and data-driven insights for better
-                outcomes.
-              </p>
+            <h2 className="max-w-xl text-4xl font-extrabold leading-tight tracking-tight text-white xl:text-6xl">
+              Empowering every learner to{" "}
+              <span className="text-yellow-400">reach their potential.</span>
+            </h2>
 
-              {/* Feature strip */}
-              <div className="mt-10 flex items-start gap-7">
+            <p className="mt-6 max-w-xl text-base leading-8 text-emerald-50/90 xl:text-lg">
+              A smarter way to manage learning, monitor competency mastery,
+              and support teachers with meaningful insights into every
+              learner&apos;s progress.
+            </p>
 
-                <div className="flex items-center gap-3">
-                  <UsersRound
-                    size={31}
-                    strokeWidth={1.6}
-                    className="text-[#f1c54c]"
-                  />
-
-                  <div>
-                    <p className="text-sm font-medium text-white">
-                      Personalized
-                    </p>
-                    <p className="text-sm text-white">
-                      Learning
-                    </p>
-                  </div>
+            {/* Feature cards */}
+            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/20 text-yellow-300">
+                  <BookOpenCheck size={22} />
                 </div>
+                <h3 className="font-bold text-white">CBC Learning</h3>
+                <p className="mt-2 text-sm leading-6 text-emerald-100">
+                  Competency-focused learning and assessment.
+                </p>
+              </div>
 
-                <div className="h-12 w-px bg-[#d8b449]/70" />
-
-                <div className="flex items-center gap-3">
-                  <BookOpenCheck
-                    size={31}
-                    strokeWidth={1.6}
-                    className="text-[#f1c54c]"
-                  />
-
-                  <div>
-                    <p className="text-sm font-medium text-white">
-                      Continuous
-                    </p>
-                    <p className="text-sm text-white">
-                      Assessment
-                    </p>
-                  </div>
+              <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/20 text-yellow-300">
+                  <BarChart3 size={22} />
                 </div>
+                <h3 className="font-bold text-white">Progress Insights</h3>
+                <p className="mt-2 text-sm leading-6 text-emerald-100">
+                  Track mastery and identify learning gaps.
+                </p>
+              </div>
 
-                <div className="h-12 w-px bg-[#d8b449]/70" />
-
-                <div className="flex items-center gap-3">
-                  <BarChart3
-                    size={31}
-                    strokeWidth={1.6}
-                    className="text-[#f1c54c]"
-                  />
-
-                  <div>
-                    <p className="text-sm font-medium text-white">
-                      Actionable
-                    </p>
-                    <p className="text-sm text-white">
-                      Insights
-                    </p>
-                  </div>
+              <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400/20 text-yellow-300">
+                  <UsersRound size={22} />
                 </div>
-
-                <div className="h-12 w-px bg-[#d8b449]/70" />
-
-                <div className="flex items-center gap-3">
-                  <UsersRound
-                    size={31}
-                    strokeWidth={1.6}
-                    className="text-[#f1c54c]"
-                  />
-
-                  <div>
-                    <p className="text-sm font-medium text-white">
-                      Stronger
-                    </p>
-                    <p className="text-sm text-white">
-                      Communities
-                    </p>
-                  </div>
-                </div>
-
+                <h3 className="font-bold text-white">Connected Schools</h3>
+                <p className="mt-2 text-sm leading-6 text-emerald-100">
+                  Support teachers, learners, and school leaders.
+                </p>
               </div>
             </div>
           </div>
-        </section>
 
-        {/* =========================================================
-            RIGHT PANEL
-        ========================================================== */}
-        <section className="relative flex min-h-screen w-full items-center bg-[#f8f7f2] px-6 py-10 lg:w-[44%] lg:px-12 xl:px-16">
-
-          {/* Decorative corner */}
-          <div className="pointer-events-none absolute right-0 top-0 h-48 w-48 overflow-hidden opacity-30">
-            <div className="absolute right-[-60px] top-[-60px] h-44 w-44 rotate-45 border-[18px] border-[#e9e6dc]" />
-            <div className="absolute right-[-20px] top-[-20px] h-28 w-28 rotate-45 border-[12px] border-[#e9e6dc]" />
+          {/* Footer */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/20 pt-6 text-sm text-emerald-100/80">
+            <p>© {new Date().getFullYear()} DARASA-AI</p>
+            <p>Advancing education through technology.</p>
           </div>
+        </div>
 
-          <div className="mx-auto w-full max-w-[520px]">
+        {/* Decorative transition on the right edge */}
+        <div className="pointer-events-none absolute right-0 top-0 z-20 h-full w-10 bg-gradient-to-l from-white/15 to-transparent" />
+      </section>
 
-            {/* Top institutional area */}
-            <div className="mb-14 flex items-center justify-end">
-              <div className="border-r border-[#0b5d43] pr-4 text-right">
-                <p className="text-[12px] font-semibold tracking-wide text-[#17382e]">
-                  KENYA EDUCATION SECTOR
-                </p>
-
-                <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-slate-500">
-                  Competency Based Curriculum
-                </p>
-              </div>
-
-              <div className="ml-4 flex h-12 w-12 items-center justify-center rounded-full border border-[#d9d7cd] text-[#0b5d43]">
-                <BookOpenCheck size={25} />
-              </div>
+      {/* ======================================================
+          RIGHT PANEL: LOGIN FORM
+      ======================================================= */}
+      <section className="flex min-h-screen w-full items-center justify-center bg-slate-50 px-5 py-10 sm:px-8 lg:w-[44%] lg:bg-white lg:px-10 xl:px-16">
+        <div className="w-full max-w-md">
+          {/* Mobile brand */}
+          <div className="mb-10 flex items-center gap-3 lg:hidden">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-700 text-yellow-300 shadow-lg">
+              <BookOpenCheck size={26} />
             </div>
 
-            {/* Darasa-AI branding */}
-            <div className="mb-12 flex items-center gap-4">
-              <div className="flex h-[64px] w-[64px] items-center justify-center rounded-xl bg-[#0b5d43] text-white">
-                <GraduationCap size={38} strokeWidth={1.7} />
-              </div>
-
-              <div>
-                <h3 className="text-[2.7rem] font-bold leading-none tracking-tight text-[#0b4d39]">
-                  Darasa-AI
-                </h3>
-
-                <p className="mt-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#0b4d39]">
-                  Adaptive Learning & Assessment Platform
-                </p>
-              </div>
-            </div>
-
-            {/* Welcome */}
-            <div className="mb-9">
-              <h4 className="text-[2.25rem] font-bold tracking-tight text-[#0c5b43]">
-                Welcome Back
-              </h4>
-
-              <p className="mt-3 max-w-[470px] text-[16px] leading-7 text-[#71817d]">
-                Sign in to access your school dashboard and manage your
-                learners, assessments and school data.
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-tight text-emerald-950">
+                DARASA<span className="text-emerald-600">-AI</span>
+              </h1>
+              <p className="text-xs font-medium text-slate-500">
+                Smart Learning. Better Outcomes.
               </p>
             </div>
+          </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Heading */}
+          <div className="mb-8">
+            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <LockKeyhole size={27} />
+            </div>
 
-              {/* Username */}
+            <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">
+              Welcome back
+            </h2>
+
+            <p className="mt-3 leading-6 text-slate-500">
+              Sign in to your DARASA-AI account to continue.
+            </p>
+          </div>
+
+          {/* Error message */}
+          {error && (
+            <div
+              role="alert"
+              className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700"
+            >
+              {error}
+            </div>
+          )}
+
+          {/* Login form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Username */}
+            <div>
+              <label
+                htmlFor="username"
+                className="mb-2 block text-sm font-semibold text-slate-700"
+              >
+                Username
+              </label>
+
               <div className="relative">
                 <UserRound
-                  size={23}
-                  strokeWidth={1.8}
-                  className="absolute left-5 top-1/2 -translate-y-1/2 text-[#7b8985]"
+                  size={19}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
                 />
 
                 <input
                   id="username"
+                  name="username"
                   type="text"
-                  value={username}
-                  onChange={(event) =>
-                    setUsername(event.target.value)
-                  }
                   autoComplete="username"
-                  placeholder="Username"
                   required
-                  className="h-[62px] w-full rounded-xl border border-[#d7dad7] bg-white px-5 pl-16 text-[16px] text-[#17382e] shadow-sm outline-none transition placeholder:text-[#899692] focus:border-[#0b5d43] focus:ring-4 focus:ring-[#0b5d43]/10"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="Enter your username"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
                 />
               </div>
+            </div>
 
-              {/* Password */}
+            {/* Password */}
+            <div>
+              <label
+                htmlFor="password"
+                className="mb-2 block text-sm font-semibold text-slate-700"
+              >
+                Password
+              </label>
+
               <div className="relative">
                 <LockKeyhole
-                  size={23}
-                  strokeWidth={1.8}
-                  className="absolute left-5 top-1/2 -translate-y-1/2 text-[#7b8985]"
+                  size={19}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
                 />
 
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(event) =>
-                    setPassword(event.target.value)
-                  }
                   autoComplete="current-password"
-                  placeholder="Password"
                   required
-                  className="h-[62px] w-full rounded-xl border border-[#d7dad7] bg-white px-14 pl-16 text-[16px] text-[#17382e] shadow-sm outline-none transition placeholder:text-[#899692] focus:border-[#0b5d43] focus:ring-4 focus:ring-[#0b5d43]/10"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-12 pr-12 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
                 />
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowPassword((value) => !value)
-                  }
-                  className="absolute right-5 top-1/2 -translate-y-1/2 text-[#71817d] transition hover:text-[#0b5d43]"
-                  aria-label={
-                    showPassword
-                      ? "Hide password"
-                      : "Show password"
-                  }
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-emerald-700"
                 >
-                  {showPassword ? (
-                    <EyeOff size={22} />
-                  ) : (
-                    <Eye size={22} />
-                  )}
+                  {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
                 </button>
               </div>
-
-              {/* Remember / forgot */}
-              <div className="flex items-center justify-between pt-1">
-
-                <label className="flex cursor-pointer items-center gap-3 text-sm text-[#60716c]">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(event) =>
-                      setRememberMe(event.target.checked)
-                    }
-                    className="h-5 w-5 rounded border-[#aeb8b4] accent-[#0b5d43]"
-                  />
-
-                  <span>Remember me</span>
-                </label>
-
-                <button
-                  type="button"
-                  className="text-sm font-medium text-[#0b5d43] hover:underline"
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              {/* Error */}
-              {error && (
-                <div
-                  role="alert"
-                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-6 text-red-700"
-                >
-                  {error}
-                </div>
-              )}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="group flex h-[60px] w-full items-center justify-center gap-4 rounded-xl bg-[#0b5d43] text-[18px] font-semibold text-white shadow-lg shadow-[#0b5d43]/20 transition hover:bg-[#084936] focus:outline-none focus:ring-4 focus:ring-[#0b5d43]/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <span>
-                  {isSubmitting ? "Signing in..." : "Sign in"}
-                </span>
-
-                {!isSubmitting && (
-                  <ArrowRight
-                    size={23}
-                    className="transition-transform group-hover:translate-x-1"
-                  />
-                )}
-              </button>
-            </form>
-
-            {/* Bottom information */}
-            <div className="mt-14 border-t border-[#deddd5] pt-7">
-              <div className="grid grid-cols-2 gap-8">
-
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#0b5d43]/10 text-[#0b5d43]">
-                    <LockKeyhole size={18} />
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold text-[#405650]">
-                      Secure & Trusted
-                    </p>
-
-                    <p className="mt-1 text-[11px] leading-5 text-[#82908c]">
-                      Protected school data
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#0b5d43]/10 text-[#0b5d43]">
-                    <BookOpenCheck size={18} />
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold text-[#405650]">
-                      CBC Ready
-                    </p>
-
-                    <p className="mt-1 text-[11px] leading-5 text-[#82908c]">
-                      Competency-based learning
-                    </p>
-                  </div>
-                </div>
-
-              </div>
-
-              <p className="mt-9 text-center text-[11px] text-[#9ba5a1]">
-                © {new Date().getFullYear()} Darasa-AI
-              </p>
             </div>
 
+            {/* Remember me */}
+            <div className="flex items-center justify-between gap-4">
+              <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 accent-emerald-700 focus:ring-emerald-600"
+                />
+                Remember me
+              </label>
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="group flex w-full items-center justify-center gap-3 rounded-xl bg-emerald-700 px-5 py-4 font-bold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmitting ? "Signing in..." : "Sign in"}
+
+              {!isSubmitting && (
+                <ArrowRight
+                  size={19}
+                  className="transition-transform group-hover:translate-x-1"
+                />
+              )}
+            </button>
+          </form>
+
+          {/* Access information */}
+          <div className="mt-8 rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                <LockKeyhole size={18} />
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Secure school access
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Use the login credentials provided by your school or
+                  system administrator. Accounts are managed by authorized
+                  administrators.
+                </p>
+              </div>
+            </div>
           </div>
-        </section>
-      </div>
-    </main>
+
+          <p className="mt-8 text-center text-xs leading-5 text-slate-400">
+            © {new Date().getFullYear()} DARASA-AI. All rights reserved.
+          </p>
+        </div>
+      </section>
+    </div>
   );
 }
 
