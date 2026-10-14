@@ -1,3 +1,4 @@
+
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import (
@@ -16,6 +17,8 @@ from .views import (
     FeePaymentViewSet,
     DashboardViewSet,
 )
+
+from .views.role_ai_assistant import RoleAIAssistantView
 
 
 router = DefaultRouter()
@@ -82,6 +85,12 @@ urlpatterns = [
             {"get": "list"}
         ),
         name="dashboard",
+    ),
+
+    path(
+        "ai/role-assistant/",
+        RoleAIAssistantView.as_view(),
+        name="role_ai_assistant",
     ),
 ]
 
