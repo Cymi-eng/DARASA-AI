@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext.jsx";
+import classImage from "../assets/class.avif";
 
 function Login() {
   const { login } = useAuth();
@@ -80,14 +81,12 @@ function Login() {
         <section className="relative hidden min-h-screen overflow-hidden lg:block lg:w-[56%]">
 
           {/* Classroom image */}
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{
-              backgroundImage:
-                "url('https://mogotiolittlefriends.sc.ke/assets/images/school/Class_2.jpg')",
-            }}
-          />
-
+<div
+  className="absolute inset-0 bg-cover bg-center"
+  style={{
+    backgroundImage: `url(${classImage})`,
+  }}
+/>
           {/* Main green image overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-[#07382a]/45 via-[#07382a]/35 to-[#03251b]/95" />
 
