@@ -24,6 +24,7 @@ from core.views import (
 )
 
 from core.views.mpesa import mpesa_callback
+from core.views.role_ai_assistant import RoleAIAssistantView
 
 
 router = DefaultRouter()
@@ -116,6 +117,11 @@ urlpatterns = [
         AIAssistantView.as_view(),
         name="ai_assistant",
     ),
+    path(
+    "api/ai/role-assistant/",
+    RoleAIAssistantView.as_view(),
+    name="role_ai_assistant",
+),
 
     # M-Pesa callback
     path(
