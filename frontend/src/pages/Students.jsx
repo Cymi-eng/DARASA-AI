@@ -153,9 +153,14 @@ function Students() {
         params.grade = gradeFilter;
       }
 
-      const response = await api.get("/students/", {
-        params,
-      });
+      
+const response = await api.get("/students/", {
+  params: {
+    ...params,
+    page_size: 1000,
+  },
+});
+
 
       const data = response.data;
 
