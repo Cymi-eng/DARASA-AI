@@ -582,7 +582,7 @@ function StudentAIAssistant({ student, competencies, recommendations }) {
     setError("");
 
     try {
-      const result = await api.post("/ai/assistant/", {
+      const result = await api.post("/ai/role-assistant/", {
         message: trimmedMessage,
       });
 
