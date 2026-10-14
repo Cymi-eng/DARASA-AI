@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   GraduationCap,
   KeyRound,
   Loader2,
@@ -17,6 +19,8 @@ import {
 } from "lucide-react";
 
 import api from "../api";
+
+const PAGE_SIZE = 15;
 
 const GRADES = [
   { value: "PP1", label: "PP1" },
@@ -122,6 +126,138 @@ function extractErrorMessage(error, fallback) {
   return messages.length > 0 ? messages.join(" ") : fallback;
 }
 
+// Builds a compact page list such as: 1 … 4 5 6 … 12
+function getPageNumbers(currentPage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set([
+    1,
+    totalPages,
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+  ]);
+
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+
+  if (currentPage >= totalPages - 2) {
+    pages.add(totalPages - 1);
+    pages.add(totalPages - 2);
+    pages.add(totalPages - 3);
+  }
+
+  const sorted = [...pages]
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  const result = [];
+
+  sorted.forEach((page, index) => {
+    if (index > 0 && page - sorted[index - 1] > 1) {
+      result.push(`ellipsis-${page}`);
+    }
+
+    result.push(page);
+  });
+
+  return result;
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  totalItems,
+  showingFrom,
+  showingTo,
+  onPageChange,
+}) {
+  const pageNumbers = getPageNumbers(currentPage, totalPages);
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-[#E9E8E1] bg-[#FAFAF7] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-[#71807A]">
+        Showing{" "}
+        <span className="font-semibold text-[#17382E]">
+          {showingFrom}–{showingTo}
+        </span>{" "}
+        of{" "}
+        <span className="font-semibold text-[#17382E]">
+          {totalItems}
+        </span>{" "}
+        student{totalItems === 1 ? "" : "s"}
+      </p>
+
+      {totalPages > 1 && (
+        <nav
+          aria-label="Students pagination"
+          className="flex items-center gap-1.5"
+        >
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#DDE1DB] bg-white px-3 text-xs font-semibold text-[#405650] transition hover:border-[#0B5D43] hover:bg-[#EAF3EE] hover:text-[#0B5D43] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[#DDE1DB] disabled:hover:bg-white disabled:hover:text-[#405650]"
+            aria-label="Previous page"
+          >
+            <ChevronLeft size={16} />
+            <span className="hidden sm:inline">Previous</span>
+          </button>
+
+          <div className="hidden items-center gap-1.5 sm:flex">
+            {pageNumbers.map((page) =>
+              typeof page === "string" ? (
+                <span
+                  key={page}
+                  className="px-1 text-sm text-[#9AA49F]"
+                >
+                  …
+                </span>
+              ) : (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => onPageChange(page)}
+                  aria-current={
+                    page === currentPage ? "page" : undefined
+                  }
+                  className={`h-9 min-w-9 rounded-lg border px-3 text-xs font-semibold transition ${
+                    page === currentPage
+                      ? "border-[#0B5D43] bg-[#0B5D43] text-white"
+                      : "border-[#DDE1DB] bg-white text-[#405650] hover:border-[#0B5D43] hover:bg-[#EAF3EE] hover:text-[#0B5D43]"
+                  }`}
+                >
+                  {page}
+                </button>
+              )
+            )}
+          </div>
+
+          <span className="px-2 text-xs font-semibold text-[#52645D] sm:hidden">
+            Page {currentPage} of {totalPages}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#DDE1DB] bg-white px-3 text-xs font-semibold text-[#405650] transition hover:border-[#0B5D43] hover:bg-[#EAF3EE] hover:text-[#0B5D43] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[#DDE1DB] disabled:hover:bg-white disabled:hover:text-[#405650]"
+            aria-label="Next page"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <ChevronRight size={16} />
+          </button>
+        </nav>
+      )}
+    </div>
+  );
+}
+
 function Students() {
   const [students, setStudents] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
@@ -136,11 +272,14 @@ function Students() {
 
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
 
   const [form, setForm] = useState(EMPTY_FORM);
+
+  const directoryRef = useRef(null);
 
   async function loadStudents() {
     setLoading(true);
@@ -153,14 +292,12 @@ function Students() {
         params.grade = gradeFilter;
       }
 
-      
-const response = await api.get("/students/", {
-  params: {
-    ...params,
-    page_size: 1000,
-  },
-});
-
+      const response = await api.get("/students/", {
+        params: {
+          ...params,
+          page_size: 1000,
+        },
+      });
 
       const data = response.data;
 
@@ -218,6 +355,11 @@ const response = await api.get("/students/", {
     loadClassrooms();
   }, []);
 
+  // Go back to the first page whenever the search or grade filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, gradeFilter]);
+
   const filteredStudents = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -243,6 +385,41 @@ const response = await api.get("/students/", {
         );
     });
   }, [students, search]);
+
+  // Pagination
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredStudents.length / PAGE_SIZE)
+  );
+
+  // Clamp so the page stays valid if the list shrinks (e.g. after a reload)
+  const safePage = Math.min(currentPage, totalPages);
+
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+
+  const paginatedStudents = useMemo(
+    () => filteredStudents.slice(startIndex, startIndex + PAGE_SIZE),
+    [filteredStudents, startIndex]
+  );
+
+  const showingFrom =
+    filteredStudents.length === 0 ? 0 : startIndex + 1;
+
+  const showingTo = Math.min(
+    startIndex + PAGE_SIZE,
+    filteredStudents.length
+  );
+
+  function goToPage(page) {
+    const nextPage = Math.min(Math.max(page, 1), totalPages);
+
+    setCurrentPage(nextPage);
+
+    directoryRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
 
   const availableClassrooms = useMemo(() => {
     if (!form.grade) {
@@ -671,7 +848,10 @@ const response = await api.get("/students/", {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#E4E5DE] bg-white shadow-sm">
+      <div
+        ref={directoryRef}
+        className="scroll-mt-24 overflow-hidden rounded-2xl border border-[#E4E5DE] bg-white shadow-sm"
+      >
         <div className="border-b border-[#E9E8E1] px-6 py-5">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -683,7 +863,7 @@ const response = await api.get("/students/", {
                 {filteredStudents.length} student
                 {filteredStudents.length === 1
                   ? ""
-                  : "s"} displayed
+                  : "s"} found
               </p>
             </div>
 
@@ -765,7 +945,7 @@ const response = await api.get("/students/", {
                 </thead>
 
                 <tbody>
-                  {filteredStudents.map((student) => (
+                  {paginatedStudents.map((student) => (
                     <tr
                       key={student.id}
                       className="border-b border-[#EEF0EB] last:border-0 hover:bg-[#FCFCF9]"
@@ -836,7 +1016,7 @@ const response = await api.get("/students/", {
             </div>
 
             <div className="divide-y divide-[#EEF0EB] lg:hidden">
-              {filteredStudents.map((student) => (
+              {paginatedStudents.map((student) => (
                 <div
                   key={student.id}
                   className="space-y-4 p-5"
@@ -895,6 +1075,15 @@ const response = await api.get("/students/", {
                 </div>
               ))}
             </div>
+
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              totalItems={filteredStudents.length}
+              showingFrom={showingFrom}
+              showingTo={showingTo}
+              onPageChange={goToPage}
+            />
           </>
         )}
       </div>
