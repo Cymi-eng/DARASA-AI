@@ -365,7 +365,7 @@ function Login() {
                 </button>
               </div>
 
-              {/* Remember / forgot */}
+              {/* Remember / forgot
               <div className="flex items-center justify-between pt-1">
 
                 <label className="flex cursor-pointer items-center gap-3 text-sm text-[#60716c]">
@@ -377,17 +377,8 @@ function Login() {
                     }
                     className="h-5 w-5 rounded border-[#aeb8b4] accent-[#0b5d43]"
                   />
-
-                  <span>Remember me</span>
                 </label>
-
-                <button
-                  type="button"
-                  className="text-sm font-medium text-[#0b5d43] hover:underline"
-                >
-                  Forgot password?
-                </button>
-              </div>
+              </div> */}
 
               {/* Error */}
               {error && (
