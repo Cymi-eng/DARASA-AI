@@ -1,5 +1,5 @@
-
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertCircle,
   ArrowRight,
@@ -17,36 +17,70 @@ import {
 
 import api from "../api";
 
+// NOTE: every `path` below must match a <Route path="..."> in your router
+// (and the paths used by your sidebar links).
 const statCards = [
   {
     key: "students",
     label: "Students",
     icon: GraduationCap,
     description: "Enrolled learners",
+    path: "/students",
   },
   {
     key: "teachers",
     label: "Teachers",
     icon: Users,
     description: "Teaching staff",
+    path: "/teachers",
   },
   {
     key: "classrooms",
     label: "Classrooms",
     icon: School,
     description: "Active learning spaces",
+    path: "/classrooms",
   },
   {
     key: "assessments",
     label: "CBC Assessments",
     icon: BookOpenCheck,
     description: "Competency records",
+    path: "/competencies",
   },
   {
     key: "payments",
     label: "Fee Payments",
     icon: CreditCard,
     description: "Recorded transactions",
+    path: "/finance",
+  },
+];
+
+const quickAccess = [
+  {
+    label: "Students",
+    description: "Manage learner records",
+    icon: GraduationCap,
+    path: "/students",
+  },
+  {
+    label: "Classrooms",
+    description: "Manage classes and grades",
+    icon: School,
+    path: "/classrooms",
+  },
+  {
+    label: "CBC Assessment",
+    description: "Track competency progress",
+    icon: BookOpenCheck,
+    path: "/competencies",
+  },
+  {
+    label: "Finance",
+    description: "Manage school payments",
+    icon: CreditCard,
+    path: "/finance",
   },
 ];
 
@@ -72,10 +106,7 @@ function generateAdminAIResponse({ message, dashboard }) {
     };
   }
 
-  if (
-    question.includes("teacher") ||
-    question.includes("staff")
-  ) {
+  if (question.includes("teacher") || question.includes("staff")) {
     return {
       title: "Teaching staff overview",
       body:
@@ -84,10 +115,7 @@ function generateAdminAIResponse({ message, dashboard }) {
     };
   }
 
-  if (
-    question.includes("class") ||
-    question.includes("classroom")
-  ) {
+  if (question.includes("class") || question.includes("classroom")) {
     return {
       title: "Classroom overview",
       body:
@@ -146,8 +174,7 @@ function generateAdminAIResponse({ message, dashboard }) {
     const priorities = [
       {
         value: assessments,
-        text:
-          "review CBC assessment activity and learner competency progress",
+        text: "review CBC assessment activity and learner competency progress",
       },
       {
         value: students,
@@ -320,9 +347,7 @@ function AdminAIAssistant({ dashboard }) {
         )}
 
         <p className="mt-4 text-[11px] text-[#8A9691]">
-          <span className="font-semibold text-[#52635D]">
-            Data source:
-          </span>{" "}
+          <span className="font-semibold text-[#52635D]">Data source:</span>{" "}
           Current dashboard records returned by Darasa-AI.
         </p>
       </div>
@@ -371,38 +396,10 @@ function Dashboard() {
 
   const totalRecords = dashboard
     ? Object.values(dashboard).reduce(
-        (total, value) =>
-          typeof value === "number" ? total + value : total,
+        (total, value) => (typeof value === "number" ? total + value : total),
         0
       )
     : 0;
-
-  const quickAccess = [
-    {
-      label: "Students",
-      description: "Manage learner records",
-      icon: GraduationCap,
-      path: "/students",
-    },
-    {
-      label: "Classrooms",
-      description: "Manage classes and grades",
-      icon: School,
-      path: "/classrooms",
-    },
-    {
-      label: "CBC Assessment",
-      description: "Track competency progress",
-      icon: BookOpenCheck,
-      path: "/competencies",
-    },
-    {
-      label: "Finance",
-      description: "Manage school payments",
-      icon: CreditCard,
-      path: "/finance",
-    },
-  ];
 
   return (
     <div className="space-y-8">
@@ -419,8 +416,8 @@ function Dashboard() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#65736E] sm:text-base">
-              Monitor learners, teaching activity, CBC assessments and
-              school operations from one place.
+              Monitor learners, teaching activity, CBC assessments and school
+              operations from one place.
             </p>
           </div>
 
@@ -455,13 +452,9 @@ function Dashboard() {
           <AlertCircle className="mt-0.5 shrink-0" size={21} />
 
           <div>
-            <p className="font-semibold">
-              Dashboard data could not be loaded
-            </p>
+            <p className="font-semibold">Dashboard data could not be loaded</p>
 
-            <p className="mt-1 text-sm leading-6 text-red-600">
-              {error}
-            </p>
+            <p className="mt-1 text-sm leading-6 text-red-600">{error}</p>
           </div>
         </div>
       )}
@@ -476,9 +469,10 @@ function Dashboard() {
               const value = dashboard[card.key] ?? 0;
 
               return (
-                <div
+                <Link
                   key={card.key}
-                  className="group rounded-2xl border border-[#E1E4DE] bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#C9DCD2] hover:shadow-md"
+                  to={card.path}
+                  className="group block rounded-2xl border border-[#E1E4DE] bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#C9DCD2] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5D43]/40"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAF3EE] text-[#0B5D43]">
@@ -502,7 +496,7 @@ function Dashboard() {
                   <p className="mt-2 text-xs text-[#9AA49F]">
                     {card.description}
                   </p>
-                </div>
+                </Link>
               );
             })}
           </section>
@@ -591,9 +585,7 @@ function Dashboard() {
           {/* Quick access */}
           <section>
             <div className="mb-4">
-              <h2 className="text-lg font-bold text-[#17382E]">
-                Quick Access
-              </h2>
+              <h2 className="text-lg font-bold text-[#17382E]">Quick Access</h2>
 
               <p className="mt-1 text-sm text-[#65736E]">
                 Common school administration areas.
@@ -605,16 +597,10 @@ function Dashboard() {
                 const Icon = item.icon;
 
                 return (
-                  <button
+                  <Link
                     key={item.path}
-                    type="button"
-                    onClick={() => {
-                      window.history.pushState({}, "", item.path);
-                      window.dispatchEvent(
-                        new PopStateEvent("popstate")
-                      );
-                    }}
-                    className="group rounded-2xl border border-[#E1E4DE] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#BFD7CB] hover:shadow-md"
+                    to={item.path}
+                    className="group block rounded-2xl border border-[#E1E4DE] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#BFD7CB] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5D43]/40"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1F3EE] text-[#0B5D43] transition group-hover:bg-[#EAF3EE]">
@@ -634,7 +620,7 @@ function Dashboard() {
                     <p className="mt-1 text-xs leading-5 text-[#65736E]">
                       {item.description}
                     </p>
-                  </button>
+                  </Link>
                 );
               })}
             </div>
@@ -646,4 +632,3 @@ function Dashboard() {
 }
 
 export default Dashboard;
-
