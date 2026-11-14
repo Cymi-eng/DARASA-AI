@@ -1,10 +1,11 @@
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 
 from rest_framework import serializers
 
-from ..models import Teacher, UserProfile
+from ..models import ClassRoom, Teacher, UserProfile
 
 
 User = get_user_model()
@@ -82,11 +83,28 @@ class UserAccountSerializer(serializers.ModelSerializer):
         )
         return value
 
+    def get_request_school(self):
+        request = self.context.get("request")
+
+        if not request or not request.user.is_authenticated:
+            return None
+
+        profile = getattr(
+            request.user,
+            "profile",
+            None,
+        )
+
+        if profile:
+            return profile.school
+
+        return None
+
     @transaction.atomic
     def create(self, validated_data):
         role = validated_data.pop(
             "role",
-            UserProfile.Role.STUDENT,
+            UserProfile.STUDENT,
         )
 
         password = validated_data.pop(
@@ -99,6 +117,21 @@ class UserAccountSerializer(serializers.ModelSerializer):
             {},
         )
 
+        school = (
+            profile_data.get("school")
+            or self.get_request_school()
+        )
+
+        if role == UserProfile.TEACHER and not school:
+            raise serializers.ValidationError(
+                {
+                    "school": (
+                        "A school must be assigned before "
+                        "creating a teacher account."
+                    )
+                }
+            )
+
         user = User.objects.create(
             **validated_data
         )
@@ -106,18 +139,26 @@ class UserAccountSerializer(serializers.ModelSerializer):
         if password:
             user.set_password(password)
             user.save(update_fields=["password"])
+        else:
+            user.set_unusable_password()
+            user.save(update_fields=["password"])
 
         UserProfile.objects.create(
             user=user,
             role=role,
-            **profile_data,
+            school=school,
+            **{
+                key: value
+                for key, value in profile_data.items()
+                if key != "school"
+            },
         )
 
-        if role == UserProfile.Role.TEACHER:
+        if role == UserProfile.TEACHER:
             Teacher.objects.get_or_create(
                 user=user,
                 defaults={
-                    "school": profile_data.get("school"),
+                    "school": school,
                 },
             )
 
@@ -270,6 +311,7 @@ class StudentAccountSettingsSerializer(serializers.Serializer):
         username = validated_data.get(
             "username"
         )
+
         new_password = validated_data.get(
             "new_password"
         )
@@ -307,10 +349,7 @@ class TeacherSerializer(serializers.ModelSerializer):
 
     classrooms = serializers.PrimaryKeyRelatedField(
         many=True,
-        queryset=__import__(
-            "core.models",
-            fromlist=["ClassRoom"],
-        ).ClassRoom.objects.all(),
+        queryset=ClassRoom.objects.all(),
         required=False,
     )
 
